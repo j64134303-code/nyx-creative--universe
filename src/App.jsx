@@ -1,828 +1,407 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Sparkles, Home, Compass, Film, MessageCircle, UserRound,
-  Settings, Bell, Search, Plus, Mic, Square, Send,
-  Music2, Gamepad2, BookOpen, Headphones, Users,
-  Clapperboard, Image, Laugh, AudioLines, Layers3,
-  Video, WandSparkles, Upload, ChevronRight, X,
-  Play, Bookmark, Heart, Menu, ArrowLeft, Globe,
-  Stars, Rocket, Palette, CircleHelp
+  Sparkles, Home, Film, MessageCircle, UserRound, Bell,
+  Mic, Square, Send, Music2, Gamepad2, BookOpen, Headphones,
+  Users, Clapperboard, Laugh, AudioLines, Layers3, Video,
+  WandSparkles, Upload, ChevronRight, X, Play, Menu,
+  ArrowLeft, Rocket, Image, Check, CircleHelp, Plus,
+  Clock3, Download, Palette, Lightbulb, ArrowRight,
+  MoreHorizontal, Headphones as AudioIcon
 } from "lucide-react";
 
 const studios = [
-  {
-    id: "marketing",
-    name: "Marketing & Advertising",
-    short: "Ads, campaigns and brands",
-    description: "Create campaigns, adverts, brand stories and promotional content.",
-    icon: Sparkles,
-    color: "pink"
-  },
-  {
-    id: "video",
-    name: "Video Editing",
-    short: "Edit and transform videos",
-    description: "Edit videos, add effects, transitions, captions and visual styles.",
-    icon: Video,
-    color: "blue"
-  },
-  {
-    id: "film",
-    name: "Film & Movie Production",
-    short: "Bring films to life",
-    description: "Bring film ideas, scenes, characters and complete productions to life.",
-    icon: Clapperboard,
-    color: "purple"
-  },
-  {
-    id: "music",
-    name: "Music & Beat Production",
-    short: "Make original music",
-    description: "Create original songs, beats, instrumentals and sounds across genres.",
-    icon: Music2,
-    color: "orange"
-  },
-  {
-    id: "games",
-    name: "Game Creation",
-    short: "Build your game world",
-    description: "Develop game concepts, worlds, characters and gameplay experiences.",
-    icon: Gamepad2,
-    color: "green"
-  },
-  {
-    id: "story",
-    name: "Storytelling & Voice",
-    short: "Write stories and scripts",
-    description: "Write novels, stories, scripts, dialogue and spoken content.",
-    icon: BookOpen,
-    color: "gold"
-  },
-  {
-    id: "audiobook",
-    name: "Audiobook Production",
-    short: "Turn books into audio",
-    description: "Turn written work into narrated, chapter-based audiobooks.",
-    icon: Headphones,
-    color: "cyan"
-  },
-  {
-    id: "characters",
-    name: "Character Creation",
-    short: "Design original characters",
-    description: "Design original characters and maintain their identity across projects.",
-    icon: Users,
-    color: "rose"
-  },
-  {
-    id: "soundtrack",
-    name: "Soundtrack & Background Music",
-    short: "Give scenes a sound",
-    description: "Create music and soundscapes for films, games and other projects.",
-    icon: AudioLines,
-    color: "indigo"
-  },
-  {
-    id: "scene",
-    name: "Step Into The Scene",
-    short: "Enter your video scenes",
-    description: "Place your chosen characters into video scenes you own or may edit.",
-    icon: Layers3,
-    color: "violet"
-  },
-  {
-    id: "comedy",
-    name: "Comedy & Humour",
-    short: "Make people laugh",
-    description: "Create jokes, skits, funny stories and entertaining characters.",
-    icon: Laugh,
-    color: "yellow"
-  },
-  {
-    id: "import",
-    name: "Import & Export",
-    short: "Bring files in and out",
-    description: "Bring in your creative files and export finished projects.",
-    icon: Upload,
-    color: "teal"
-  }
+  { id:"marketing", name:"Marketing & Advertising", short:"Campaigns, adverts and brands", icon:Sparkles, color:"pink", example:"Create a product advert, campaign or brand launch." },
+  { id:"video", name:"Video Editing", short:"Transform your video clips", icon:Video, color:"blue", example:"Combine clips, music, transitions, motion and colour." },
+  { id:"film", name:"Film & Movie Production", short:"Build complete film projects", icon:Clapperboard, color:"purple", example:"Develop scenes, characters, dialogue and a film." },
+  { id:"music", name:"Music & Beat Production", short:"Create original music", icon:Music2, color:"orange", example:"Make beats, songs, instrumentals and sound." },
+  { id:"games", name:"Game Creation", short:"Build interactive worlds", icon:Gamepad2, color:"green", example:"Design a game world, characters and gameplay." },
+  { id:"story", name:"Storytelling & Voice", short:"Stories, books and scripts", icon:BookOpen, color:"gold", example:"Write a novel, script, dialogue or story." },
+  { id:"audiobook", name:"Audiobook Production", short:"Turn books into audio", icon:Headphones, color:"cyan", example:"Prepare chapters, narration and downloadable audio." },
+  { id:"characters", name:"Character Creation", short:"Design original characters", icon:Users, color:"rose", example:"Create a character and maintain their identity." },
+  { id:"soundtrack", name:"Soundtrack & Background Music", short:"Give scenes their sound", icon:AudioLines, color:"indigo", example:"Create music and soundscapes for a scene." },
+  { id:"scene", name:"Step Into The Scene", short:"Place characters in scenes", icon:Layers3, color:"violet", example:"Add a chosen character to footage you can edit." },
+  { id:"comedy", name:"Comedy & Humour", short:"Create entertaining content", icon:Laugh, color:"yellow", example:"Develop jokes, skits and funny characters." },
+  { id:"import", name:"Import & Export", short:"Move creative files", icon:Upload, color:"teal", example:"Import source files and export finished work." }
 ];
 
-const navItems = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "create", label: "Create", icon: WandSparkles },
-  { id: "reels", label: "Reels", icon: Film },
-  { id: "inbox", label: "Inbox", icon: MessageCircle },
-  { id: "profile", label: "Profile", icon: UserRound }
+const nav = [
+  { id:"home", label:"Home", icon:Home },
+  { id:"create", label:"Create", icon:WandSparkles },
+  { id:"reels", label:"Reels", icon:Film },
+  { id:"inbox", label:"Inbox", icon:MessageCircle },
+  { id:"profile", label:"Profile", icon:UserRound }
 ];
 
-function findStudios(message) {
-  const text = message.toLowerCase();
+function routeStudios(value) {
+  const text = value.toLowerCase();
+  const ids = [];
+  const has = (...words) => words.some(word => text.includes(word));
 
-  const rules = [
-    { words: ["advert", "marketing", "campaign", "brand", "promote"], ids: ["marketing"] },
-    { words: ["edit video", "video edit", "video", "clip", "transition"], ids: ["video"] },
-    { words: ["film", "movie", "cinema"], ids: ["film"] },
-    { words: ["song", "music", "beat", "instrumental", "gengetone", "mugithi", "urbantone"], ids: ["music"] },
-    { words: ["game", "gaming", "gameplay"], ids: ["games"] },
-    { words: ["novel", "book", "story", "script", "dialogue"], ids: ["story"] },
-    { words: ["audiobook", "audio book", "narrate"], ids: ["audiobook"] },
-    { words: ["character", "avatar"], ids: ["characters"] },
-    { words: ["soundtrack", "background music", "film score"], ids: ["soundtrack"] },
-    { words: ["put me in", "insert", "step into"], ids: ["scene"] },
-    { words: ["comedy", "funny", "joke", "skit", "humour", "humor"], ids: ["comedy"] },
-    { words: ["import", "export", "upload file", "download project"], ids: ["import"] }
+  if (has("music video")) ids.push("music","video");
+  if (has("video","clip","edit","transition","montage")) ids.push("video");
+  if (has("song","music","beat","instrumental","gengetone","mugithi","urbantone")) ids.push("music");
+  if (has("advert","marketing","campaign","brand","promote")) ids.push("marketing");
+  if (has("film","movie","cinema")) ids.push("film","story","characters","soundtrack","video");
+  if (has("novel","book","story","script","dialogue")) ids.push("story");
+  if (has("audiobook","audio book","narrate")) ids.push("story","audiobook");
+  if (has("game","gaming","gameplay")) ids.push("games");
+  if (has("character","avatar")) ids.push("characters");
+  if (has("soundtrack","background music","film score")) ids.push("soundtrack");
+  if (has("put me in","insert","step into","movie scene")) ids.push("characters","scene","video");
+  if (has("comedy","funny","joke","skit","humour","humor")) ids.push("comedy","story");
+  if (has("upload","import","export","download")) ids.push("import");
+
+  return [...new Set(ids)];
+}
+
+function makeSequence(ids) {
+  const order = [
+    "marketing","story","characters","music","soundtrack",
+    "film","games","scene","video","audiobook","comedy","import"
   ];
-
-  let found = rules
-    .filter(rule => rule.words.some(word => text.includes(word)))
-    .flatMap(rule => rule.ids);
-
-  // Suggest connected studios for common multi-part projects.
-  if (text.includes("music video")) {
-    found.push("music", "video");
-  }
-
-  if (text.includes("audiobook")) {
-    found.push("story", "audiobook");
-  }
-
-  if (text.includes("make a film") || text.includes("create a film")) {
-    found.push("film", "story", "characters", "soundtrack", "video");
-  }
-
-  if (text.includes("movie scene") || text.includes("put my character")) {
-    found.push("characters", "scene", "video");
-  }
-
-  if (text.includes("comedy skit")) {
-    found.push("comedy", "story", "video");
-  }
-
-  if (text.includes("advert for") || text.includes("advertisement")) {
-    found.push("marketing");
-  }
-
-  return [...new Set(found)];
+  return order.filter(id => ids.includes(id));
 }
 
 export default function App() {
-  const [page, setPage] = useState("home");
-  const [message, setMessage] = useState("");
-  const [selected, setSelected] = useState([]);
-  const [request, setRequest] = useState("");
-  const [recording, setRecording] = useState(false);
-  const [recordedAudio, setRecordedAudio] = useState("");
-  const [notice, setNotice] = useState("");
-  const [search, setSearch] = useState("");
-  const [mobileMenu, setMobileMenu] = useState(false);
-  const [showAllStudios, setShowAllStudios] = useState(true);
-  const [showHelp, setShowHelp] = useState(false);
-
-  const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
+  const [page,setPage] = useState("home");
+  const [idea,setIdea] = useState("");
+  const [project,setProject] = useState(null);
+  const [step,setStep] = useState(0);
+  const [chat,setChat] = useState([]);
+  const [recording,setRecording] = useState(false);
+  const [audioUrl,setAudioUrl] = useState("");
+  const [notice,setNotice] = useState("");
+  const [menuOpen,setMenuOpen] = useState(false);
+  const [studioSearch,setStudioSearch] = useState("");
+  const recorder = useRef(null);
+  const chunks = useRef([]);
 
   useEffect(() => {
     return () => {
-      if (recorderRef.current?.state === "recording") {
-        recorderRef.current.stop();
-      }
-      if (recordedAudio) {
-        URL.revokeObjectURL(recordedAudio);
-      }
+      if (recorder.current?.state === "recording") recorder.current.stop();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
-  }, [recordedAudio]);
+  },[audioUrl]);
 
-  function navigate(nextPage) {
-    setPage(nextPage);
-    setMobileMenu(false);
+  function go(next) {
+    setPage(next);
+    setMenuOpen(false);
     setNotice("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({top:0,behavior:"smooth"});
   }
 
-  function chooseStudio(id) {
-    setSelected(current =>
-      current.includes(id)
-        ? current.filter(item => item !== id)
-        : [...current, id]
-    );
-
-    setPage("create");
-    setNotice("Studio selection updated. You are in control of your creative team.");
-  }
-
-  function startRequest() {
-    if (!message.trim() && !recordedAudio) {
-      setNotice("Tell NYX what you would like to create first.");
+  function beginProject(text) {
+    const clean = text.trim();
+    if (!clean) {
+      setNotice("Tell NYX what you want to create first.");
       return;
     }
 
-    if (!message.trim() && recordedAudio) {
-      setNotice("Your voice note is recorded. Voice understanding will be connected in a later stage.");
-      return;
-    }
+    const matches = routeStudios(clean);
+    const chosen = matches.length ? matches : ["story"];
 
-    const matches = findStudios(message);
+    setProject({
+      id:Date.now(),
+      title:clean.length > 48 ? clean.slice(0,48) + "…" : clean,
+      idea:clean,
+      studios:makeSequence(chosen),
+      created:new Date().toLocaleDateString()
+    });
 
-    setRequest(message.trim());
+    setChat([
+      { role:"creator", text:clean },
+      {
+        role:"nyx",
+        text:matches.length
+          ? "I've identified some studios that may be involved. Let's review the production journey together."
+          : "I need a little more direction to choose the right studios. I've opened a starting workspace so we can shape the idea."
+      }
+    ]);
+    setStep(0);
+    setIdea("");
+    setPage("workspace");
+    setNotice("");
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
 
-    if (matches.length) {
-      setSelected(current => [...new Set([...current, ...matches])]);
-      setNotice("NYX has suggested studios based on your words. Review and change them before creating.");
-    } else {
-      setNotice("I need a little more detail or a studio selection to guide this project.");
-    }
+  function addStudio(id) {
+    if (!project) return;
+    setProject(current => ({
+      ...current,
+      studios:makeSequence([...current.studios,id])
+    }));
+  }
 
-    setPage("create");
-    setMessage("");
+  function removeStudio(id) {
+    if (!project) return;
+    setProject(current => ({
+      ...current,
+      studios:current.studios.filter(item => item !== id)
+    }));
+    setStep(0);
+  }
+
+  function sendMessage() {
+    if (!idea.trim()) return;
+    const text = idea.trim();
+    setChat(current => [...current,{role:"creator",text}]);
+    setIdea("");
+    setChat(current => [...current,{
+      role:"nyx",
+      text:"I've added your instruction to this project's conversation. The connected AI coordinator will be needed to interpret it and update the production automatically."
+    }]);
   }
 
   async function toggleRecording() {
     if (recording) {
-      recorderRef.current?.stop();
+      recorder.current?.stop();
       setRecording(false);
       return;
     }
-
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      setNotice("Voice recording is not supported by this browser.");
+      setNotice("Voice recording isn't supported in this browser.");
       return;
     }
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-
-      chunksRef.current = [];
-
-      recorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const mediaRecorder = new MediaRecorder(stream);
+      chunks.current = [];
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size) chunks.current.push(event.data);
       };
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || "audio/webm"
-        });
-
-        setRecordedAudio(URL.createObjectURL(blob));
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks.current,{type:mediaRecorder.mimeType || "audio/webm"});
+        setAudioUrl(URL.createObjectURL(blob));
         stream.getTracks().forEach(track => track.stop());
-
-        setNotice("Your voice note is ready. Voice-to-text understanding is not connected yet.");
       };
-
-      recorderRef.current = recorder;
-      recorder.start();
+      recorder.current = mediaRecorder;
+      mediaRecorder.start();
       setRecording(true);
-      setNotice("Recording your voice note… tap the microphone button again to finish.");
     } catch {
-      setNotice("Microphone access was not granted. Check your browser permissions.");
+      setNotice("Please allow microphone access to record a voice note.");
     }
   }
 
-  function clearVoiceNote() {
-    if (recordedAudio) {
-      URL.revokeObjectURL(recordedAudio);
-    }
-    setRecordedAudio("");
-    setNotice("Voice note removed.");
-  }
+  const activeStudio = project?.studios?.[step]
+    ? studios.find(item => item.id === project.studios[step])
+    : null;
 
-  const filteredStudios = studios.filter(studio =>
-    `${studio.name} ${studio.description} ${studio.short}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  const filteredStudios = studios.filter(item =>
+    `${item.name} ${item.short}`.toLowerCase().includes(studioSearch.toLowerCase())
   );
 
-  const selectedStudios = studios.filter(studio =>
-    selected.includes(studio.id)
-  );
-
-  function renderStudioCard(studio) {
+  function StudioTile({studio,compact=false}) {
     const Icon = studio.icon;
-    const active = selected.includes(studio.id);
-
+    const selected = project?.studios?.includes(studio.id);
     return (
       <button
-        type="button"
-        key={studio.id}
-        className={`studio-card studio-${studio.color} ${active ? "selected" : ""}`}
-        onClick={() => chooseStudio(studio.id)}
+        className={`studio-tile studio-${studio.color} ${selected ? "is-selected" : ""}`}
+        onClick={() => project ? addStudio(studio.id) : beginProject(`I want to explore ${studio.name}.`)}
       >
-        <span className="studio-icon">
-          <Icon size={23} />
-        </span>
-
-        <span className="studio-card-name">{studio.name}</span>
-        <span className="studio-card-description">{studio.short}</span>
-
-        <span className="studio-card-action">
-          {active ? "Selected ✓" : "Explore studio"}
-          <ChevronRight size={15} />
-        </span>
+        <span className="tile-art"><Icon size={27}/></span>
+        <strong>{studio.name}</strong>
+        <span>{compact ? studio.short : studio.example}</span>
+        <small>{selected ? "In this project" : "Explore studio"} <ChevronRight size={13}/></small>
       </button>
     );
   }
 
   return (
     <div className="nyx-app">
-
-      {/* TOP BAR */}
       <header className="topbar">
-        <button
-          className="brand-button"
-          onClick={() => navigate("home")}
-          aria-label="NYX Home"
-        >
-          <span className="brand-symbol">
-            <Sparkles size={22} />
-          </span>
+        <button className="brand-button" onClick={() => go("home")}>
+          <span className="brand-symbol"><Sparkles size={22}/></span>
           <span className="brand-name">NYX</span>
           <span className="brand-subtitle">THE CREATIVE UNIVERSE</span>
         </button>
-
         <div className="topbar-actions">
-          <button
-            className="icon-button"
-            onClick={() => setShowHelp(!showHelp)}
-            aria-label="Help"
-          >
-            <CircleHelp size={19} />
-          </button>
-
-          <button
-            className="icon-button"
-            onClick={() => setNotice("Notifications will be connected with user accounts.")}
-            aria-label="Notifications"
-          >
-            <Bell size={19} />
-          </button>
-
-          <button
-            className="icon-button mobile-menu-button"
-            onClick={() => setMobileMenu(!mobileMenu)}
-            aria-label="Menu"
-          >
-            {mobileMenu ? <X size={21} /> : <Menu size={21} />}
-          </button>
+          <button className="icon-button" aria-label="Help" onClick={() => setNotice("NYX helps organise your creative journey. Some AI and generation services are not connected yet.")}><CircleHelp size={19}/></button>
+          <button className="icon-button" aria-label="Notifications" onClick={() => go("notifications")}><Bell size={19}/></button>
+          <button className="icon-button mobile-menu-button" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20}/></button>
         </div>
       </header>
 
-      {/* MOBILE MENU */}
-      {mobileMenu && (
-        <div className="mobile-menu">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} onClick={() => navigate(item.id)}>
-                <Icon size={19} />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {menuOpen && <div className="mobile-menu">
+        {nav.map(item => {
+          const Icon = item.icon;
+          return <button key={item.id} onClick={() => go(item.id)}><Icon size={18}/>{item.label}</button>;
+        })}
+      </div>}
 
-      {/* HELP PANEL */}
-      {showHelp && (
-        <div className="help-panel">
-          <button className="close-help" onClick={() => setShowHelp(false)}>
-            <X size={17} />
-          </button>
-          <h3>Welcome to NYX ✨</h3>
-          <p>
-            Tell NYX what you imagine. Choose a studio yourself or let
-            NYX suggest studios that could work together.
-          </p>
-          <p>
-            Your projects remain under your control. Nothing is published
-            automatically.
-          </p>
-        </div>
-      )}
+      {notice && <div className="global-notice"><Sparkles size={16}/>{notice}<button onClick={() => setNotice("")}><X size={15}/></button></div>}
 
-      {/* MAIN CONTENT */}
       <main className="main-content">
+        {page === "home" && <>
+          <section className="home-hero">
+            <div>
+              <span className="eyebrow"><Sparkles size={14}/> THE CREATIVE UNIVERSE</span>
+              <h1>Imagine beyond.<br/><span>Create everything.</span></h1>
+              <p>One idea can become a story, a film, a song or an entire world.</p>
+              <button className="primary-button" onClick={() => go("create")}><Rocket size={18}/> Start creating <ArrowRight size={17}/></button>
+            </div>
+            <div className="home-planet">
+              <div className="planet-orbit"></div>
+              <div className="planet-core"><Sparkles size={38}/></div>
+              <span>YOUR IDEAS. YOUR UNIVERSE.</span>
+            </div>
+          </section>
 
-        {/* HOME */}
-        {page === "home" && (
-          <>
-            <section className="welcome-section">
-              <div className="welcome-copy">
-                <span className="eyebrow">
-                  <Stars size={14} /> YOUR IMAGINATION HAS NO LIMITS
-                </span>
-
-                <h1>
-                  Imagine beyond.
-                  <span>Create everything.</span>
-                </h1>
-
-                <p>
-                  Welcome to NYX — your creative universe.
-                  Bring your ideas, your voice and your imagination.
-                  We'll help you find the right creative path.
-                </p>
-
-                <button
-                  className="primary-button"
-                  onClick={() => navigate("create")}
-                >
-                  <Rocket size={18} />
-                  Start creating
-                  <ChevronRight size={17} />
-                </button>
-              </div>
-
-              <div className="cosmic-art">
-                <div className="cosmic-orbit orbit-one" />
-                <div className="cosmic-orbit orbit-two" />
-                <div className="cosmic-planet">
-                  <Sparkles size={42} />
-                </div>
-                <span className="cosmic-star star-one">✦</span>
-                <span className="cosmic-star star-two">✧</span>
-                <span className="cosmic-star star-three">✦</span>
-                <span className="cosmic-caption">CREATE YOUR UNIVERSE</span>
-              </div>
-            </section>
-
-            <section className="assistant-section">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">YOUR CREATIVE COMPANION</span>
-                  <h2>Talk to NYX</h2>
-                </div>
-                <span className="assistant-status">
-                  <span className="status-dot" /> Ready to explore
-                </span>
-              </div>
-
-              <div className="assistant-card">
-                <div className="assistant-intro">
-                  <div className="assistant-avatar">
-                    <Sparkles size={25} />
-                  </div>
-                  <div>
-                    <h3>Hey, creator! 👋</h3>
-                    <p>
-                      What are we bringing to life today?
-                      Tell me in your own words.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="suggestion-chips">
-                  {[
-                    "Create a music video",
-                    "Write a story",
-                    "Make a funny skit",
-                    "Design a character"
-                  ].map(item => (
-                    <button
-                      key={item}
-                      onClick={() => setMessage(item)}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="composer">
-                  <textarea
-                    value={message}
-                    onChange={event => setMessage(event.target.value)}
-                    placeholder="Describe anything you want to create..."
-                    rows={2}
-                    aria-label="Describe your creative idea"
-                  />
-
-                  <div className="composer-actions">
-                    <button
-                      className={`voice-button ${recording ? "recording" : ""}`}
-                      onClick={toggleRecording}
-                      aria-label={recording ? "Stop recording" : "Record voice note"}
-                    >
-                      {recording ? <Square size={19} /> : <Mic size={20} />}
-                      <span>{recording ? "Stop" : "Voice note"}</span>
-                    </button>
-
-                    <button
-                      className="send-button"
-                      onClick={startRequest}
-                      aria-label="Send idea"
-                    >
-                      <Send size={19} />
-                    </button>
-                  </div>
-                </div>
-
-                {recordedAudio && (
-                  <div className="voice-preview">
-                    <audio controls src={recordedAudio} />
-                    <button onClick={clearVoiceNote} aria-label="Remove voice note">
-                      <X size={17} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {notice && (
-                <div className="notice-message">
-                  <Sparkles size={16} />
-                  {notice}
-                </div>
-              )}
-            </section>
-
-            <section className="studios-section" id="studios">
-              <div className="section-heading">
-                <div>
-                  <span className="eyebrow">12 CREATIVE WORLDS</span>
-                  <h2>Explore the studios</h2>
-                  <p className="section-description">
-                    Twelve ways to turn imagination into something real.
-                  </p>
-                </div>
-
-                <button
-                  className="text-button"
-                  onClick={() => setShowAllStudios(!showAllStudios)}
-                >
-                  {showAllStudios ? "Show less" : "Show all"}
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              {showAllStudios && (
-                <div className="studio-grid">
-                  {studios.map(renderStudioCard)}
-                </div>
-              )}
-            </section>
-
-            <section className="connection-section">
-              <div className="connection-art">
-                <div className="connection-orbit">
-                  <Sparkles size={25} />
-                </div>
-                <span className="connection-node node-a"><Music2 size={17} /></span>
-                <span className="connection-node node-b"><Video size={17} /></span>
-                <span className="connection-node node-c"><BookOpen size={17} /></span>
-                <span className="connection-node node-d"><Users size={17} /></span>
-              </div>
-
-              <div className="connection-copy">
-                <span className="eyebrow">MORE THAN SEPARATE TOOLS</span>
-                <h2>Studios that work together.</h2>
-                <p>
-                  A music video can use the Music and Video studios.
-                  A novel can move into Audiobook Production.
-                  A film can bring together stories, characters,
-                  music and editing.
-                </p>
-                <button
-                  className="secondary-button"
-                  onClick={() => navigate("create")}
-                >
-                  Explore connected creation
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </section>
-
-            <section className="community-preview">
-              <div>
-                <span className="eyebrow">A UNIVERSE OF CREATORS</span>
-                <h2>Your next creative chapter starts here.</h2>
-                <p>
-                  Reels, creator profiles and community features
-                  will become part of the NYX experience.
-                </p>
-              </div>
-              <button
-                className="secondary-button"
-                onClick={() => navigate("reels")}
-              >
-                Explore Reels <Play size={16} />
-              </button>
-            </section>
-          </>
-        )}
-
-        {/* CREATE */}
-        {page === "create" && (
-          <section className="create-page">
-            <button className="back-button" onClick={() => navigate("home")}>
-              <ArrowLeft size={17} /> Back home
+          <section className="dashboard-grid">
+            <button className="dashboard-card create-dashboard" onClick={() => go("create")}>
+              <WandSparkles size={24}/><strong>Create something</strong><span>Start a new creative project</span><ChevronRight/>
             </button>
+            <button className="dashboard-card" onClick={() => project ? go("workspace") : go("create")}>
+              <Layers3 size={24}/><strong>My projects</strong><span>{project ? "Continue your current project" : "Your projects will appear here"}</span><ChevronRight/>
+            </button>
+            <button className="dashboard-card" onClick={() => go("reels")}>
+              <Film size={24}/><strong>Explore Reels</strong><span>Discover creator videos</span><ChevronRight/>
+            </button>
+          </section>
 
+          <section className="home-studios">
+            <div className="section-heading">
+              <div><span className="eyebrow">THE CREATIVE TOOLS</span><h2>Explore the studios</h2></div>
+              <button className="text-button" onClick={() => go("studios")}>View all <ChevronRight size={15}/></button>
+            </div>
+            <div className="studio-grid home-studio-grid">
+              {studios.slice(0,4).map(studio => <StudioTile key={studio.id} studio={studio} compact/>)}
+            </div>
+          </section>
+        </>}
+
+        {page === "create" && <>
+          <button className="back-button" onClick={() => go("home")}><ArrowLeft size={17}/> Home</button>
+          <section className="create-intro">
             <span className="eyebrow">YOUR CREATIVE WORKSPACE</span>
-            <h1>Let's create something.</h1>
-            <p className="page-intro">
-              Choose one studio or combine several for a bigger project.
-            </p>
-
-            <div className="assistant-card create-assistant">
-              <div className="assistant-intro">
-                <div className="assistant-avatar">
-                  <Sparkles size={25} />
-                </div>
-                <div>
-                  <h3>Tell NYX your idea</h3>
-                  <p>Use your own words. You don't need to know which studio to choose.</p>
-                </div>
-              </div>
-
-              {request && (
-                <div className="request-summary">
-                  <strong>Your project idea</strong>
-                  <p>{request}</p>
-                </div>
-              )}
-
-              <div className="composer">
-                <textarea
-                  value={message}
-                  onChange={event => setMessage(event.target.value)}
-                  placeholder="What would you like to make?"
-                  rows={3}
-                />
-                <div className="composer-actions">
-                  <button
-                    className={`voice-button ${recording ? "recording" : ""}`}
-                    onClick={toggleRecording}
-                  >
-                    {recording ? <Square size={19} /> : <Mic size={20} />}
-                    <span>{recording ? "Stop" : "Voice note"}</span>
-                  </button>
-                  <button className="send-button" onClick={startRequest}>
-                    <Send size={19} />
-                  </button>
-                </div>
-              </div>
-
-              {recordedAudio && (
-                <div className="voice-preview">
-                  <audio controls src={recordedAudio} />
-                  <button onClick={clearVoiceNote}>
-                    <X size={17} />
-                  </button>
-                </div>
+            <h1>What are we creating?</h1>
+            <p>Tell NYX your idea. You don't need to know which studios you need.</p>
+          </section>
+          <section className="idea-panel">
+            <div className="idea-assistant"><span className="assistant-avatar"><Sparkles size={23}/></span><div><strong>NYX Creative Guide</strong><p>Start with your idea. We can shape it together.</p></div></div>
+            <div className="idea-examples">
+              {["Edit several clips into one video","Create a music video for my song","Write a story and make an audiobook","Create an advert for my brand"].map(example =>
+                <button key={example} onClick={() => setIdea(example)}>{example}<ArrowRight size={14}/></button>
               )}
             </div>
-
-            {notice && (
-              <div className="notice-message">
-                <Sparkles size={16} /> {notice}
+            <div className="composer">
+              <textarea value={idea} onChange={e => setIdea(e.target.value)} placeholder="Describe what you want to create..." rows={3}/>
+              <div className="composer-actions">
+                <button className={`voice-button ${recording ? "recording" : ""}`} onClick={toggleRecording}>{recording ? <Square size={18}/> : <Mic size={18}/>} {recording ? "Stop recording" : "Voice note"}</button>
+                <button className="send-button" onClick={() => beginProject(idea)} aria-label="Start project"><Send size={19}/></button>
               </div>
-            )}
+              {audioUrl && <div className="voice-preview"><audio controls src={audioUrl}/><button onClick={() => {URL.revokeObjectURL(audioUrl);setAudioUrl("");}}><X size={16}/></button><span>Voice note saved locally; transcription is not connected yet.</span></div>}
+            </div>
+          </section>
+          <section className="studio-directory">
+            <div className="section-heading"><div><span className="eyebrow">12 CREATIVE WORLDS</span><h2>Explore by studio</h2></div></div>
+            <input className="studio-search" value={studioSearch} onChange={e => setStudioSearch(e.target.value)} placeholder="Find a studio..."/>
+            <div className="studio-grid">{filteredStudios.map(studio => <StudioTile key={studio.id} studio={studio}/>)}</div>
+          </section>
+        </>}
 
-            <div className="section-heading create-heading">
+        {page === "workspace" && project && <>
+          <button className="back-button" onClick={() => go("create")}><ArrowLeft size={17}/> All creation options</button>
+          <div className="project-heading">
+            <span className="eyebrow">YOUR PROJECT WORKSPACE</span>
+            <h1>{project.title}</h1>
+            <p>NYX will guide you through the stages. You stay in control.</p>
+          </div>
+
+          <section className="journey-panel">
+            <div className="journey-top"><div><span className="eyebrow">PRODUCTION JOURNEY</span><h2>Your creative team</h2></div><span className="step-count">{project.studios.length} stages</span></div>
+            <div className="journey-track">
+              {project.studios.map((id,index) => {
+                const studio = studios.find(item => item.id === id);
+                const Icon = studio.icon;
+                return <button key={id} className={`journey-step ${index === step ? "current" : ""} ${index < step ? "complete" : ""}`} onClick={() => setStep(index)}>
+                  <span className="journey-number">{index < step ? <Check size={15}/> : index+1}</span>
+                  <Icon size={19}/><span>{studio.name}</span>
+                  {index < project.studios.length-1 && <ChevronRight size={15}/>}
+                </button>;
+              })}
+            </div>
+            <div className="journey-controls">
+              <button className="text-button" onClick={() => go("studios")}><Plus size={15}/> Add another studio</button>
+              {activeStudio && <span>Stage {step+1} of {project.studios.length}</span>}
+            </div>
+          </section>
+
+          {activeStudio && <section className="stage-panel">
+            <div className="stage-header">
+              <div className={`stage-icon studio-${activeStudio.color}`}><activeStudio.icon size={27}/></div>
+              <div><span className="eyebrow">CURRENT STAGE</span><h2>{activeStudio.name}</h2><p>{activeStudio.example}</p></div>
+            </div>
+            <div className="stage-illustration">
+              <div className="stage-visual-icon"><activeStudio.icon size={45}/></div>
+              <div><strong>Let's shape this part of your project.</strong><p>Review the examples and decide what you want this studio to do.</p></div>
+            </div>
+            <div className="stage-suggestions">
+              <h3><Lightbulb size={17}/> Ideas to consider</h3>
+              <div className="suggestion-list">
+                <div><Check size={15}/> Choose the style and direction</div>
+                <div><Check size={15}/> Review the source material you want to use</div>
+                <div><Check size={15}/> Decide what you want to change or keep</div>
+              </div>
+            </div>
+            <div className="stage-actions">
+              <button className="secondary-button" onClick={() => removeStudio(activeStudio.id)}>Remove this stage</button>
               <div>
-                <span className="eyebrow">YOUR CREATIVE TEAM</span>
-                <h2>Select your studios</h2>
-              </div>
-              <span className="selection-count">
-                {selected.length} selected
-              </span>
-            </div>
-
-            {selectedStudios.length > 0 && (
-              <div className="selected-studios">
-                {selectedStudios.map(studio => {
-                  const Icon = studio.icon;
-                  return (
-                    <div className="selected-studio" key={studio.id}>
-                      <Icon size={17} />
-                      <span>{studio.name}</span>
-                      <button onClick={() => chooseStudio(studio.id)}>
-                        <X size={15} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="studio-grid">
-              {studios.map(renderStudioCard)}
-            </div>
-
-            <div className="preview-panel">
-              <div className="preview-heading">
-                <Image size={20} />
-                <h2>Creation preview</h2>
-              </div>
-              <div className="preview-empty">
-                <div className="preview-symbol">
-                  <Palette size={31} />
-                </div>
-                <h3>Your canvas awaits.</h3>
-                <p>
-                  Your actual creative work will appear here
-                  when the generation engines are connected.
-                </p>
-                <span className="preview-status">
-                  <span className="status-dot" />
-                  Creative engines not connected yet
-                </span>
+                <button className="secondary-button" disabled={step===0} onClick={() => setStep(s => s-1)}>Previous</button>
+                <button className="primary-button" onClick={() => step < project.studios.length-1 ? setStep(s => s+1) : setNotice("You've reached the end of the planned stages. Actual generation and export still need to be connected.")}>{step < project.studios.length-1 ? "Next stage" : "Review journey"} <ChevronRight size={16}/></button>
               </div>
             </div>
+          </section>}
 
-            <div className="honest-note">
-              <Sparkles size={17} />
-              NYX will connect the studios through a shared creative
-              engine. Your selections are saved in this session;
-              actual generation and project saving will be added later.
+          <section className="project-chat">
+            <div className="chat-title"><span className="assistant-avatar"><Sparkles size={20}/></span><div><strong>Talk with NYX</strong><p>Your project guide</p></div></div>
+            <div className="chat-messages">
+              {chat.map((item,index) => <div key={index} className={`chat-message ${item.role}`}>{item.role==="nyx" && <span className="chat-mini-avatar"><Sparkles size={14}/></span>}<p>{item.text}</p></div>)}
+            </div>
+            <div className="composer workspace-composer">
+              <textarea value={idea} onChange={e => setIdea(e.target.value)} placeholder="Ask NYX to change something or explain your idea..." rows={2}/>
+              <div className="composer-actions">
+                <button className={`voice-button ${recording ? "recording" : ""}`} onClick={toggleRecording}>{recording ? <Square size={17}/> : <Mic size={17}/>} {recording ? "Stop" : "Voice note"}</button>
+                <button className="send-button" onClick={sendMessage}><Send size={18}/></button>
+              </div>
             </div>
           </section>
-        )}
+        </>}
 
-        {/* REELS */}
-        {page === "reels" && (
-          <section className="simple-page">
-            <span className="eyebrow">THE CREATOR COMMUNITY</span>
-            <h1>NYX Reels</h1>
-            <p className="page-intro">
-              Discover short videos, follow creators and share your creations.
-            </p>
+        {page === "studios" && <>
+          <button className="back-button" onClick={() => go(project ? "workspace" : "create")}><ArrowLeft size={17}/> Back to project</button>
+          <span className="eyebrow">12 CREATIVE WORLDS</span><h1 className="page-title">Explore all studios</h1>
+          <div className="studio-grid">{studios.map(studio => <StudioTile key={studio.id} studio={studio}/>)}</div>
+        </>}
 
-            <div className="future-panel">
-              <div className="future-icon"><Film size={34} /></div>
-              <h2>Your creative feed is coming.</h2>
-              <p>
-                Video playback, creator profiles, likes, comments,
-                saves, reposts and sharing will be developed
-                as part of the social platform stage.
-              </p>
-              <span className="preview-status">
-                <span className="status-dot" /> Social features not connected yet
-              </span>
-            </div>
-          </section>
-        )}
+        {page === "reels" && <section className="simple-page">
+          <span className="eyebrow">THE CREATOR COMMUNITY</span><h1>NYX Reels</h1><p>Discover short videos and creator work.</p>
+          <div className="future-panel"><Film size={38}/><h2>Your creative feed</h2><p>Video playback, creator profiles, likes, comments, saves and sharing will be connected in the social platform stage.</p></div>
+        </section>}
 
-        {/* INBOX */}
-        {page === "inbox" && (
-          <section className="simple-page">
-            <span className="eyebrow">YOUR CONVERSATIONS</span>
-            <h1>Inbox</h1>
-            <p className="page-intro">
-              Connect and communicate with other creators.
-            </p>
+        {page === "inbox" && <section className="simple-page">
+          <span className="eyebrow">CREATOR MESSAGES</span><h1>Inbox</h1><p>Conversations with other NYX creators will live here.</p>
+          <div className="future-panel"><MessageCircle size={38}/><h2>Your messages</h2><p>Project conversations with NYX stay inside each project. This inbox is reserved for messages from other creators.</p></div>
+        </section>}
 
-            <div className="future-panel">
-              <div className="future-icon"><MessageCircle size={34} /></div>
-              <h2>Your conversations will live here.</h2>
-              <p>
-                Private messages, voice messages, notifications,
-                blocking and privacy controls will be connected
-                when accounts and messaging are implemented.
-              </p>
-            </div>
-          </section>
-        )}
+        {page === "notifications" && <section className="simple-page">
+          <button className="back-button" onClick={() => go("home")}><ArrowLeft size={17}/> Home</button>
+          <span className="eyebrow">YOUR ACTIVITY</span><h1>Notifications</h1>
+          <div className="future-panel"><Bell size={38}/><h2>You're all caught up</h2><p>Likes, comments, follows, mentions and account alerts will appear here when notifications are connected.</p></div>
+        </section>}
 
-        {/* PROFILE */}
-        {page === "profile" && (
-          <section className="simple-page">
-            <span className="eyebrow">YOUR CREATOR SPACE</span>
-            <h1>Your profile</h1>
-
-            <div className="future-panel">
-              <div className="future-icon"><UserRound size={34} /></div>
-              <h2>Your creative identity.</h2>
-              <p>
-                Your profile, published work, followers,
-                saved creations and creator settings will be
-                added with account functionality.
-              </p>
-            </div>
-          </section>
-        )}
-
+        {page === "profile" && <section className="simple-page">
+          <span className="eyebrow">YOUR CREATOR SPACE</span><h1>Your profile</h1>
+          <div className="future-panel"><UserRound size={38}/><h2>Your creative identity</h2><p>Your profile, published work, followers and creator settings will be connected with accounts.</p></div>
+        </section>}
       </main>
 
-      {/* BOTTOM NAVIGATION */}
       <footer className="mobile-bottom-nav">
-        {navItems.map(item => {
+        {nav.map(item => {
           const Icon = item.icon;
-          return (
-            <button
-              key={item.id}
-              className={page === item.id ? "active" : ""}
-              onClick={() => navigate(item.id)}
-            >
-              <Icon size={20} />
-              <span>{item.label}</span>
-            </button>
-          );
+          return <button key={item.id} className={page===item.id || (page==="workspace" && item.id==="create") || (page==="studios" && item.id==="create") ? "active" : ""} onClick={() => go(item.id)}><Icon size={20}/><span>{item.label}</span></button>;
         })}
       </footer>
-
     </div>
   );
 }
