@@ -907,3 +907,256 @@ p { color: var(--muted); line-height: 1.7; }
     transition-duration: .01ms !important;
   }
 }
+/* NYX STUDIO ILLUSTRATIONS */
+
+.nyx-artwork {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 125px;
+  margin-bottom: 15px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(190,151,255,.14);
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(142,83,224,.2), transparent 65%),
+    linear-gradient(145deg, rgba(91,53,130,.18), rgba(20,12,32,.8));
+}
+
+.nyx-artwork::before,
+.nyx-artwork::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.nyx-artwork::before {
+  width: 125px;
+  height: 125px;
+  border: 1px solid rgba(196,162,255,.12);
+}
+
+.nyx-artwork::after {
+  width: 90px;
+  height: 90px;
+  border: 1px dashed rgba(196,162,255,.16);
+}
+
+.nyx-art-orbit {
+  position: absolute;
+  width: 105px;
+  height: 105px;
+  border: 1px solid rgba(196,162,255,.2);
+  border-radius: 50%;
+  transform: rotate(-25deg) scaleY(.55);
+}
+
+.nyx-art-main {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  border: 1px solid rgba(220,194,255,.35);
+  border-radius: 22px;
+  background: linear-gradient(145deg,#7548a6,#302044);
+  color: #f0e4ff;
+  box-shadow:
+    0 0 25px rgba(155,104,237,.28),
+    inset 0 1px rgba(255,255,255,.15);
+}
+
+.nyx-art-main svg {
+  width: 32px;
+  height: 32px;
+  stroke-width: 1.6;
+}
+
+.nyx-art-floating {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  border: 1px solid rgba(204,174,255,.28);
+  border-radius: 12px;
+  background: rgba(35,22,51,.95);
+  color: #d8c1ff;
+  box-shadow: 0 5px 18px rgba(0,0,0,.25);
+}
+
+.nyx-art-floating svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nyx-art-caption {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  left: 10px;
+  z-index: 3;
+  color: rgba(222,202,255,.7);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.nyx-art-label {
+  position: absolute;
+  top: 10px;
+  left: 11px;
+  z-index: 3;
+  color: rgba(218,194,255,.65);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* SOUND WAVES */
+
+.nyx-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 38px;
+}
+
+.nyx-wave span {
+  display: block;
+  width: 3px;
+  min-height: 7px;
+  border-radius: 5px;
+  background: linear-gradient(to top,#8752c7,#d6baff);
+  box-shadow: 0 0 8px rgba(173,119,255,.35);
+}
+
+.nyx-wave span:nth-child(1),
+.nyx-wave span:nth-child(9) { height: 10px; }
+
+.nyx-wave span:nth-child(2),
+.nyx-wave span:nth-child(8) { height: 18px; }
+
+.nyx-wave span:nth-child(3),
+.nyx-wave span:nth-child(7) { height: 27px; }
+
+.nyx-wave span:nth-child(4),
+.nyx-wave span:nth-child(6) { height: 20px; }
+
+.nyx-wave span:nth-child(5) { height: 35px; }
+
+/* FILM AND VIDEO DETAILS */
+
+.nyx-film-strip {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid rgba(196,162,255,.25);
+  border-radius: 7px;
+  background: rgba(15,9,24,.8);
+}
+
+.nyx-film-strip span {
+  width: 13px;
+  height: 21px;
+  border-radius: 3px;
+  background: linear-gradient(145deg,#a77be0,#493064);
+}
+
+.nyx-edit-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 75px;
+}
+
+.nyx-edit-bars span {
+  display: block;
+  height: 5px;
+  border-radius: 5px;
+  background: linear-gradient(90deg,#b68af2,#65418f);
+}
+
+.nyx-edit-bars span:nth-child(2) { width: 72%; }
+.nyx-edit-bars span:nth-child(3) { width: 88%; }
+
+/* BOOK AND WRITING DETAILS */
+
+.nyx-book-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 38px;
+}
+
+.nyx-book-lines span {
+  display: block;
+  height: 3px;
+  border-radius: 4px;
+  background: rgba(231,211,255,.75);
+}
+
+.nyx-book-lines span:nth-child(3) { width: 65%; }
+
+/* STUDIO CARD ARTWORK HOVER */
+
+.nyx-studio-card .nyx-artwork {
+  transition: transform .25s ease, border-color .25s ease;
+}
+
+.nyx-studio-card:hover .nyx-artwork {
+  transform: scale(1.025);
+  border-color: rgba(190,151,255,.38);
+}
+
+.nyx-studio-card:hover .nyx-art-main {
+  box-shadow:
+    0 0 32px rgba(155,104,237,.4),
+    inset 0 1px rgba(255,255,255,.2);
+}
+
+/* MOBILE ARTWORK */
+
+@media (max-width: 650px) {
+  .nyx-artwork {
+    min-height: 112px;
+    margin-bottom: 11px;
+    border-radius: 12px;
+  }
+
+  .nyx-art-main {
+    width: 57px;
+    height: 57px;
+    border-radius: 18px;
+  }
+
+  .nyx-art-main svg {
+    width: 27px;
+    height: 27px;
+  }
+
+  .nyx-art-floating {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+
+  .nyx-art-floating svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .nyx-art-caption {
+    font-size: 7px;
+  }
+}
