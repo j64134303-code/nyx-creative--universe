@@ -1160,3 +1160,142 @@ p { color: var(--muted); line-height: 1.7; }
     font-size: 7px;
   }
 }
+
+/* =====================================
+   NYX FINAL UI POLISH
+===================================== */
+
+/* Studio card action */
+.nyx-open-studio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  color: var(--purple-light);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Empty search result */
+.nyx-empty-search {
+  grid-column: 1 / -1;
+  padding: 35px 15px;
+  border: 1px dashed var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+  text-align: center;
+}
+
+/* Correct illustration elements:
+   JSX uses i elements, not spans. */
+.nyx-film-strip i {
+  display: block;
+  width: 13px;
+  height: 21px;
+  border-radius: 3px;
+  background: linear-gradient(145deg,#a77be0,#493064);
+}
+
+.nyx-edit-bars i {
+  display: block;
+  height: 5px;
+  border-radius: 5px;
+  background: linear-gradient(90deg,#b68af2,#65418f);
+}
+
+.nyx-edit-bars i:nth-child(1) { width: 100%; }
+.nyx-edit-bars i:nth-child(2) { width: 72%; }
+.nyx-edit-bars i:nth-child(3) { width: 88%; }
+
+.nyx-book-lines i {
+  display: block;
+  height: 3px;
+  border-radius: 4px;
+  background: rgba(231,211,255,.75);
+}
+
+.nyx-book-lines i:nth-child(1) { width: 38px; }
+.nyx-book-lines i:nth-child(2) { width: 38px; }
+.nyx-book-lines i:nth-child(3) { width: 25px; }
+
+/* Five-item navigation */
+.nyx-bottom-nav {
+  justify-content: space-between;
+  gap: 3px;
+  min-height: 76px;
+  padding: 7px max(8px, env(safe-area-inset-right))
+    calc(7px + env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+
+.nyx-bottom-nav button {
+  flex: 1 1 20%;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  white-space: nowrap;
+  transition: color .2s ease, background .2s ease;
+}
+
+.nyx-bottom-nav button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nyx-bottom-nav button.active {
+  color: var(--purple-light);
+  background: rgba(139,87,190,.14);
+}
+
+.nyx-bottom-nav button.active svg {
+  filter: drop-shadow(0 0 6px rgba(196,162,255,.4));
+}
+
+/* Secondary pages */
+.nyx-placeholder-page {
+  padding: 35px 0 100px;
+}
+
+.nyx-placeholder-icon {
+  box-shadow: 0 0 35px rgba(142,83,224,.12);
+}
+
+/* Better studio artwork */
+.nyx-artwork {
+  transition: border-color .25s ease, background .25s ease;
+}
+
+.nyx-art-main {
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.nyx-studio-card:hover .nyx-art-main {
+  transform: scale(1.06);
+}
+
+/* Keep content above the fixed navigation */
+.nyx-app {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+.nyx-chat-page {
+  padding-bottom: 15px;
+}
+
+/* Small phone screens */
+@media (max-width: 370px) {
+  .nyx-bottom-nav {
+    gap: 0;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .nyx-bottom-nav button {
+    font-size: 8px;
+  }
+
+  .nyx-bottom-nav button svg {
+    width: 18px;
+    height: 18px;
+  }
+}
