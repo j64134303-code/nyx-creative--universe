@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Home, Plus, Film, Music, BookOpen, Mic, Gamepad2,
+  Home as HomeIcon, Plus, Film, Music, BookOpen, Mic, Gamepad2,
   Megaphone, UserRound, AudioLines, Clapperboard, Laugh,
   Upload, Bell, MessageCircle, Send, Paperclip, ArrowLeft,
   X, Trash2, Clock, Sparkles, ChevronRight, FolderOpen,
