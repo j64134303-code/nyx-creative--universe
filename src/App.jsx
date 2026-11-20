@@ -12,7 +12,9 @@ import {
 import { supabase } from "./lib/supabase";
 import ResearchHub from "./ResearchHub";
 
-const STORAGE_KEY = "nyx-conversations-v1";const STUDIOS = [
+const STORAGE_KEY = "nyx-conversations-v1";
+
+const STUDIOS = [
   {
     id: "film",
     name: "Film & Video",
@@ -239,8 +241,9 @@ function Composer({ onSend, disabled = false }) {
         <Send size={19} />
       </button>
     </form>
-  );
-}export default function App() {
+  );}
+
+export default function App() {
   const [conversations, setConversations] = useState(loadConversations);
   const [activeConversation, setActiveConversation] = useState(null);
   const [activeStudio, setActiveStudio] = useState(null);
