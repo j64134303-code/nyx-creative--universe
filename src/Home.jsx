@@ -8,7 +8,7 @@ import {
 export default function Home({ onNavigate = () => {}, onNewChat = () => {} }) {
   const sections = [
     { name: "Reels", description: "Discover creative videos", icon: Film, page: "reels", color: "#c084fc" },
-    { name: "Studios", description: "Bring ideas to life", icon: Clapperboard, page: "studio", color: "#f472b6" },
+    { name: "Studios, description: "Bring ideas to life", icon: Clapperboard, page: "studio", color: "#f472b6" },
     { name: "Projects", description: "Continue your creations", icon: FolderOpen, page: "projects", color: "#38bdf8" },
     { name: "Research", description: "Find ideas and inspiration", icon: Compass, page: "research", color: "#34d399" }
   ];
