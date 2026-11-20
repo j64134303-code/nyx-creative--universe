@@ -11,7 +11,7 @@ import {
 
 import { supabase } from "./lib/supabase";
 import ResearchHub from "./ResearchHub";
-
+import Home from "./Home";
 const STORAGE_KEY = "nyx-conversations-v1";
 
 const STUDIOS = [
@@ -809,30 +809,7 @@ export default function App() {
             ))}
           </div>
 
-          <section className="nyx-recent-projects">
-            <h2>Recent conversations</h2>
 
-            {conversations.length === 0 ? (
-              <p>Your conversations will appear here.</p>
-            ) : (
-              conversations.slice(0, 5).map((conversation) => {
-                const studio = findStudio(conversation.studioId);
-
-                return (
-                  <button
-                    key={conversation.id}
-                    onClick={() => openConversation(conversation)}
-                  >
-                    <MessageCircle size={17} />
-                    <span>
-                      <strong>{conversation.title}</strong>
-                      <small>{studio?.name || "Studio"}</small>
-                    </span>
-                    <ChevronRight size={17} />
-                  </button>
-                );
-              })
-            )}
           </section>
         </section>
       )}
