@@ -751,22 +751,19 @@ export default function App() {
           </p>
         </section>
       ) : (
-      
-) : (
-  <Home
-    onNavigate={(nextPage) => {
-      if (nextPage === "studio") {
-        startConversation(STUDIOS[0]);
-      } else if (nextPage === "research") {
-        setActiveStudio(findStudio("research"));
-        setPage("research");
-      } else {
-        setPage(nextPage);
-      }
-    }}
-    onNewChat={() => startConversation(STUDIOS[0])}
-  />
-)}
+        <Home
+          onNavigate={(nextPage) => {
+            if (nextPage === "studio") {
+              startConversation(STUDIOS[0]);
+            } else if (nextPage === "research") {
+              setActiveStudio(findStudio("research"));
+              setPage("research");
+            } else {
+              setPage(nextPage);
+            }
+          }}
+          onNewChat={() => startConversation(STUDIOS[0])}
+        />
       )}
     </main>
   );
