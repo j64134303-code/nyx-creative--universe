@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Home, Plus, Film, Music, BookOpen, Mic, Gamepad2,
   Megaphone, UserRound, AudioLines, Clapperboard, Laugh,
@@ -8,10 +8,11 @@ import {
   Search, WandSparkles, Headphones, Video, CircleStop,
   Camera, Layers, Volume2, Image, Star, Disc3, Palette,
   Radio, PenTool, Play, Compass, Settings, LogOut,
-  Lock, Mail, User, Pencil, Check
+  Lock, Mail, User, Pencil, Check, Link as LinkIcon
 } from "lucide-react";
 
 import { supabase } from "./lib/supabase";
+import ResearchHub from "./ResearchHub";
 
 const STORAGE_KEY = "nyx-conversations-v1";
 
@@ -449,197 +450,213 @@ function MessageBubble({ item }) {
     </div>
   );
 }
-
-/* CONVERSATION HISTORY */
-
 function ConversationHistory({
-  conversations,
+  chats,
   activeId,
-  onOpen,
+  onSelect,
   onNew,
-  onDelete
+  onDelete,
+  onClose
 }) {
   return (
-    <aside className="nyx-history-panel">
+    <div className="nyx-history-panel">
       <div className="nyx-history-heading">
         <div>
-          <span className="nyx-eyebrow">YOUR SPACE</span>
           <h3>Conversations</h3>
+          <p>Your studio workspace</p>
         </div>
-        <button onClick={onNew} aria-label="New conversation">
-          <Plus size={20}/>
+        <button onClick={onClose} className="nyx-icon-button" title="Close">
+          <X size={18} />
         </button>
       </div>
 
-      <button className="nyx-new-chat" onClick={onNew}>
-        <Plus size={17}/>
+      <button className="nyx-new-chat-button" onClick={onNew}>
+        <Plus size={17} />
         New conversation
       </button>
 
       <div className="nyx-history-list">
-        {conversations.length===0 ? (
-          <div className="nyx-empty-history">
-            <MessageCircle size={25}/>
-            <p>Your conversations will appear here.</p>
-            <small>Start an idea and return to it whenever you like.</small>
+        {chats.length === 0 ? (
+          <div className="nyx-empty-state">
+            <MessageCircle size={25} />
+            <p>No conversations yet.</p>
           </div>
         ) : (
-          conversations.map(chat=>(
+          chats.map(chat => (
             <div
-              className={`nyx-history-item ${activeId===chat.id?"selected":""}`}
               key={chat.id}
+              className={`nyx-history-item ${
+                chat.id === activeId ? "active" : ""
+              }`}
             >
               <button
-                className="nyx-history-open"
-                onClick={()=>onOpen(chat.id)}
+                className="nyx-history-select"
+                onClick={() => {
+                  onSelect(chat.id);
+                  onClose();
+                }}
               >
-                <MessageCircle size={16}/>
+                <MessageCircle size={17} />
                 <span>
-                  <strong>{chat.title}</strong>
-                  <small>{formatDate(chat.updatedAt)}</small>
+                  <strong>{chat.title || "New conversation"}</strong>
+                  <small>{formatDate(chat.updatedAt || chat.createdAt)}</small>
                 </span>
               </button>
 
               <button
-                className="nyx-delete-chat"
-                onClick={()=>onDelete(chat.id)}
-                aria-label="Delete conversation"
+                className="nyx-icon-button nyx-delete-button"
+                title="Delete conversation"
+                onClick={() => onDelete(chat.id)}
               >
-                <Trash2 size={14}/>
+                <Trash2 size={15} />
               </button>
             </div>
           ))
         )}
       </div>
-    </aside>
+    </div>
   );
 }
 
-/* HOME PAGE */
-
 function HomePage({
-  navigate,
-  openStudio,
-  search,
-  setSearch,
-  user,
-  setNotice
+  onOpenStudio,
+  onNavigate,
+  user
 }) {
-  const filtered = STUDIOS.filter(studio=>
+  const [studioSearch, setStudioSearch] = useState("");
+
+  const filteredStudios = STUDIOS.filter(studio =>
     `${studio.name} ${studio.description}`
       .toLowerCase()
-      .includes(search.toLowerCase())
+      .includes(studioSearch.toLowerCase())
   );
 
   return (
-    <main className="nyx-main">
-      <header className="nyx-header">
-        <button className="nyx-logo" onClick={()=>navigate("home")}>
-          <span className="nyx-logo-mark">N</span>
+    <div className="nyx-page nyx-home-page">
+      <header className="nyx-topbar">
+        <div className="nyx-brand">
+          <span className="nyx-brand-symbol">N</span>
           <span>NYX</span>
-        </button>
+        </div>
 
-        <div className="nyx-header-actions">
-          <button onClick={()=>navigate("notifications")} aria-label="Notifications">
-            <Bell size={19}/>
+        <div className="nyx-topbar-actions">
+          <button
+            className="nyx-icon-button"
+            title="Notifications"
+            onClick={() => onNavigate("notifications")}
+          >
+            <Bell size={19} />
           </button>
-          <button onClick={()=>navigate(user?"profile":"auth")} aria-label="Profile">
-            <UserRound size={19}/>
+
+          <button
+            className="nyx-profile-button"
+            title="Profile"
+            onClick={() => onNavigate(user ? "profile" : "auth")}
+          >
+            <UserRound size={19} />
           </button>
         </div>
       </header>
 
-      <section className="nyx-hero">
-        <span className="nyx-eyebrow">
-          <Sparkles size={14}/>
-          THE CREATIVE UNIVERSE
-        </span>
-
-        <h1>
-          Imagine beyond.
-          <br/>
-          <span>Create everything.</span>
-        </h1>
-
-        <p>
-          One idea can become a story, a film, a song or an entire world.
-        </p>
-
-        <button className="nyx-primary-button" onClick={()=>navigate("create")}>
-          <WandSparkles size={18}/>
-          Start creating
-        </button>
-      </section>
-
-      <section className="nyx-shortcuts">
-        <button onClick={()=>navigate("create")}>
-          <Plus size={21}/>
-          <span>
-            <strong>Create something</strong>
-            <small>Talk to NYX</small>
+      <main className="nyx-home-content">
+        <section className="nyx-hero">
+          <div className="nyx-hero-glow" />
+          <span className="nyx-eyebrow">
+            <Sparkles size={14} />
+            YOUR CREATIVE UNIVERSE
           </span>
-        </button>
 
-        <button onClick={()=>navigate(user?"projects":"auth")}>
-          <FolderOpen size={21}/>
-          <span>
-            <strong>My projects</strong>
-            <small>{user?"Your saved creative work":"Sign in to save projects"}</small>
-          </span>
-        </button>
+          <h1>
+            Imagine beyond.
+            <br />
+            <span>Create everything.</span>
+          </h1>
 
-        <button onClick={()=>navigate("real")}>
-          <Film size={21}/>
-          <span>
-            <strong>Real</strong>
-            <small>Explore creative work</small>
-          </span>
-        </button>
-      </section>
+          <p>
+            You imagine. NYX brings it to life.
+            Explore your ideas, discover possibilities and create
+            from one connected creative space.
+          </p>
 
-      <section className="nyx-studios-section">
-        <div className="nyx-section-heading">
-          <div>
-            <span className="nyx-eyebrow">YOUR IDEAS. YOUR UNIVERSE.</span>
-            <h2>Explore the studios</h2>
-            <p>Choose a studio or simply tell NYX what you want.</p>
+          <button
+            className="nyx-primary-button"
+            onClick={() => onNavigate("create")}
+          >
+            Start creating
+            <ChevronRight size={18} />
+          </button>
+        </section>
+
+        <section className="nyx-quick-actions">
+          <button onClick={() => onNavigate("create")}>
+            <span className="nyx-quick-icon">
+              <Plus size={20} />
+            </span>
+            <span>Create</span>
+          </button>
+
+          <button onClick={() => onNavigate("projects")}>
+            <span className="nyx-quick-icon">
+              <FolderOpen size={20} />
+            </span>
+            <span>My projects</span>
+          </button>
+
+          <button onClick={() => onNavigate("real")}>
+            <span className="nyx-quick-icon">
+              <Compass size={20} />
+            </span>
+            <span>Explore</span>
+          </button>
+        </section>
+
+        <section className="nyx-studios-section">
+          <div className="nyx-section-heading">
+            <div>
+              <span className="nyx-eyebrow">THE CREATIVE WORKSPACE</span>
+              <h2>Explore the studios</h2>
+              <p>Every studio has its own purpose and tools.</p>
+            </div>
           </div>
-          <span className="nyx-studio-count">12 studios</span>
-        </div>
 
-        <div className="nyx-search">
-          <Search size={17}/>
-          <input
-            value={search}
-            onChange={e=>setSearch(e.target.value)}
-            placeholder="Find a studio..."
-          />
-        </div>
-
-        <div className="nyx-studio-grid">
-          {filtered.map(studio=>(
-            <StudioCard
-              key={studio.id}
-              studio={studio}
-              onClick={()=>openStudio(studio.id)}
+          <div className="nyx-search-box">
+            <Search size={18} />
+            <input
+              value={studioSearch}
+              onChange={event => setStudioSearch(event.target.value)}
+              placeholder="Find a studio..."
             />
-          ))}
-        </div>
+            {studioSearch && (
+              <button
+                className="nyx-icon-button"
+                onClick={() => setStudioSearch("")}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
 
-        {filtered.length===0 && (
-          <p className="nyx-empty-search">No studios match that search.</p>
-        )}
-      </section>
+          <div className="nyx-studio-grid">
+            {filteredStudios.map(studio => (
+              <StudioCard
+                key={studio.id}
+                studio={studio}
+                onClick={() => onOpenStudio(studio.id)}
+              />
+            ))}
+          </div>
 
-      <footer className="nyx-home-footer">
-        <Sparkles size={16}/>
-        Your imagination leads. NYX brings the creative tools together.
-      </footer>
-    </main>
+          {filteredStudios.length === 0 && (
+            <div className="nyx-empty-state">
+              <Search size={24} />
+              <p>No studios match that search.</p>
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
   );
 }
-
-/* CHAT PAGE */
 
 function ChatPage({
   studio,
@@ -650,303 +667,386 @@ function ChatPage({
   onNew,
   onSend,
   onDelete,
+  onResearch,
   genre,
   setGenre,
-  setNotice,
   user,
   onRequireAuth
 }) {
-  const [mobileHistory,setMobileHistory] = useState(false);
-  const activeChat = chats.find(chat=>chat.id===activeId);
-  const history = chats.filter(chat=>
-    chat.studioId===(studio?.id||null)
-  );
-  const Icon = studio?.icon || Sparkles;
+  const [showHistory, setShowHistory] = useState(false);
+  const [message, setMessage] = useState("");
+  const messagesEndRef = useRef(null);
 
-  function openChat(id) {
-    setActiveId(id);
-    setMobileHistory(false);
+  const studioChats = chats
+    .filter(chat => chat.studio === studio?.id)
+    .sort((a, b) =>
+      new Date(b.updatedAt || b.createdAt) -
+      new Date(a.updatedAt || a.createdAt)
+    );
+
+  const activeChat = studioChats.find(chat => chat.id === activeId);
+  const messages = activeChat?.messages || [];
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  if (!studio) {
+    return (
+      <div className="nyx-page">
+        <button className="nyx-back-button" onClick={onBack}>
+          <ArrowLeft size={18} />
+          Back
+        </button>
+        <p>Studio not found.</p>
+      </div>
+    );
   }
 
+  const submitMessage = () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+
+    if (!user) {
+      onRequireAuth();
+      return;
+    }
+
+    onSend(trimmed);
+    setMessage("");
+  };
+
+  const handleKeyDown = event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      submitMessage();
+    }
+  };
+
   return (
-    <main className="nyx-chat-page">
+    <div className="nyx-page nyx-chat-page">
       <header className="nyx-chat-header">
         <button
-          className="nyx-back-button"
+          className="nyx-icon-button"
           onClick={onBack}
-          aria-label="Back to home"
+          title="Back"
         >
-          <ArrowLeft size={20}/>
+          <ArrowLeft size={20} />
         </button>
 
-        <div className="nyx-chat-brand">
-          <div className="nyx-chat-brand-icon"><Icon size={21}/></div>
+        <div className="nyx-chat-studio">
+          <span className="nyx-chat-studio-icon">
+            {studio.icon || <Sparkles size={20} />}
+          </span>
           <div>
-            <strong>{studio?studio.name:"Talk to NYX"}</strong>
-            <small>{studio?"Your creative studio":"Your creative space"}</small>
+            <strong>{studio.name}</strong>
+            <small>NYX Creative Studio</small>
           </div>
         </div>
 
-        <button
-          className="nyx-header-icon"
-          onClick={()=>setMobileHistory(v=>!v)}
-          aria-label="Conversation history"
-        >
-          <Clock size={19}/>
-        </button>
-
-        <button
-          className="nyx-header-icon"
-          onClick={user?onNew:onRequireAuth}
-          aria-label="New conversation"
-        >
-          <Plus size={21}/>
-        </button>
-      </header>
-
-      <div className="nyx-chat-layout">
-        <div className={`nyx-history-wrapper ${mobileHistory?"mobile-open":""}`}>
-          <ConversationHistory
-            conversations={history}
-            activeId={activeId}
-            onOpen={openChat}
-            onNew={user?onNew:onRequireAuth}
-            onDelete={onDelete}
-          />
+        <div className="nyx-chat-header-actions">
+          <button
+            className="nyx-icon-button"
+            title="Research"
+            onClick={onResearch}
+          >
+            <Compass size={19} />
+          </button>
 
           <button
-            className="nyx-history-close"
-            onClick={()=>setMobileHistory(false)}
+            className="nyx-icon-button"
+            title="Conversation history"
+            onClick={() => setShowHistory(true)}
           >
-            <X size={18}/>
-            Close
+            <Clock size={19} />
+          </button>
+
+          <button
+            className="nyx-icon-button"
+            title="New conversation"
+            onClick={onNew}
+          >
+            <Plus size={20} />
           </button>
         </div>
+      </header>
 
-        <section className="nyx-chat-main">
-          <div className="nyx-messages">
-            {!activeChat || activeChat.messages.length===0 ? (
-              <div className="nyx-chat-welcome">
-                <div className="nyx-welcome-symbol"><Icon size={34}/></div>
+      {showHistory && (
+        <div className="nyx-history-overlay">
+          <ConversationHistory
+            chats={studioChats}
+            activeId={activeId}
+            onSelect={setActiveId}
+            onNew={() => {
+              setShowHistory(false);
+              onNew();
+            }}
+            onDelete={onDelete}
+            onClose={() => setShowHistory(false)}
+          />
+        </div>
+      )}
 
-                <span className="nyx-eyebrow">WELCOME TO NYX</span>
+      <main className="nyx-chat-content">
+        {!activeChat || messages.length === 0 ? (
+          <div className="nyx-chat-welcome">
+            <div className="nyx-welcome-art">
+              <Sparkles size={34} />
+            </div>
 
-                <h1>
-                  {studio
-                    ? `Let's create in ${studio.name}.`
-                    : "What are we imagining today?"
-                  }
-                </h1>
+            <span className="nyx-eyebrow">
+              WELCOME TO {studio.name.toUpperCase()}
+            </span>
 
-                <p>
-                  {studio
-                    ? `${studio.description} Tell NYX what you imagine, in your own words.`
-                    : "Tell NYX your idea naturally. You don't need to learn complicated software or technical terms."
-                  }
-                </p>
+            <h1>What are we creating today?</h1>
 
-                <div className="nyx-feature-note">
-                  <Sparkles size={18}/>
-                  NYX is designed to coordinate the studios for a project,
-                  so you won't have to move your ideas and assets between
-                  them yourself.
-                </div>
+            <p>
+              {studio.description ||
+                "Tell NYX what you have in mind. You can start with a simple idea."}
+            </p>
 
-                {studio?.id==="music" && (
-                  <div className="nyx-genre-section">
-                    <span>Explore music styles (optional)</span>
-                    <div className="nyx-genre-list">
-                      {GENRES.map(item=>(
-                        <button
-                          key={item}
-                          className={genre===item?"selected":""}
-                          onClick={()=>{
-                            setGenre(item);
-                            setNotice(`${item} selected as a music style.`);
-                          }}
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {studio?.id==="storytelling" && (
-                  <div className="nyx-feature-note">
-                    <BookOpen size={18}/>
-                    Write books, develop chapters, edit stories and scripts.
-                  </div>
-                )}
-
-                {studio?.id==="audiobook" && (
-                  <div className="nyx-feature-note">
-                    <Headphones size={18}/>
-                    Plan chapter-level audiobooks with distinct character
-                    dialogue voices as well as narration. Voice profiles
-                    can describe tone, pitch, accent, pacing and emotion.
-                  </div>
-                )}
-
-                {studio?.id==="characters" && (
-                  <div className="nyx-feature-note">
-                    <UserRound size={18}/>
-                    Build character personalities and voice profiles that
-                    can be shared with the Storytelling, Film and Audiobook
-                    studios.
-                  </div>
-                )}
-
-                {studio?.id==="scene" && (
-                  <div className="nyx-feature-note">
-                    <Film size={18}/>
-                    Describe the character and scene you want to bring together.
-                  </div>
-                )}
+            <div className="nyx-research-prompt">
+              <div className="nyx-research-prompt-icon">
+                <Compass size={20} />
               </div>
-            ) : (
-              <div className="nyx-message-list">
-                <h3 className="nyx-active-chat-title">{activeChat.title}</h3>
+              <div>
+                <strong>Research before you create</strong>
+                <p>
+                  Gather references, links, inspiration and useful
+                  information for this project.
+                </p>
+                <button onClick={onResearch}>
+                  Open Research Hub
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
 
-                {activeChat.messages.map(item=>(
-                  <MessageBubble key={item.id} item={item}/>
-                ))}
-
-                <div className="nyx-engine-notice">
-                  <Sparkles size={15}/>
-                  Your conversation is saved. Live AI and generation services
-                  will be connected in a later development stage.
+            {studio.id === "music" && (
+              <div className="nyx-genre-picker">
+                <strong>Choose a music direction</strong>
+                <div className="nyx-genre-options">
+                  {GENRES.map(item => (
+                    <button
+                      key={item}
+                      className={genre === item ? "selected" : ""}
+                      onClick={() => setGenre(item)}
+                    >
+                      {item}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
+
+            {["storytelling", "audiobook", "characters", "scene"].includes(
+              studio.id
+            ) && (
+              <div className="nyx-studio-tip">
+                <Sparkles size={17} />
+                <span>
+                  You can describe your idea naturally. NYX will help
+                  organise the creative direction.
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="nyx-message-list">
+            {messages.map((item, index) => (
+              <MessageBubble
+                key={item.id || index}
+                message={item}
+              />
+            ))}
+
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+      </main>
+
+      {activeChat?.researchReferences?.length > 0 && (
+        <section className="nyx-attached-research">
+          <div className="nyx-attached-research-heading">
+            <Compass size={16} />
+            <strong>Project research</strong>
+            <span>{activeChat.researchReferences.length}</span>
           </div>
 
-          <Composer
-            onSend={onSend}
-            disabled={!user}
-            onRequireAuth={onRequireAuth}
-          />
+          <div className="nyx-attached-research-list">
+            {activeChat.researchReferences.map((reference, index) => (
+              <a
+                key={reference.id || reference.url || index}
+                href={reference.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <LinkIcon size={14} />
+                <span>{reference.label || reference.url}</span>
+                <ExternalLink size={13} />
+              </a>
+            ))}
+          </div>
         </section>
+      )}
+
+      <div className="nyx-chat-composer-wrap">
+        <div className="nyx-service-note">
+          NYX workspace · Some AI and creation services are still being connected.
+        </div>
+
+        <div className="nyx-chat-composer">
+          <button
+            className="nyx-icon-button"
+            title="Research"
+            onClick={onResearch}
+          >
+            <Compass size={19} />
+          </button>
+
+          <textarea
+            value={message}
+            onChange={event => setMessage(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message ${studio.name}...`}
+            rows={1}
+          />
+
+          <button
+            className="nyx-send-button"
+            onClick={submitMessage}
+            disabled={!message.trim()}
+            title="Send message"
+          >
+            <Send size={18} />
+          </button>
+        </div>
       </div>
-    </main>
+    </div>
   );
-}
-
-/* AUTHENTICATION PAGE */
-
-function AuthPage({
-  authMode,
-  setAuthMode,
-  onSubmit,
+}function AuthPage({
+  mode,
+  setMode,
+  onSignIn,
+  onSignUp,
   busy,
   error,
   notice,
   onBack
 }) {
-  const [email,setEmail] = useState("");
-  const [password,setPassword] = useState("");
-  const [displayName,setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
 
-  function submit(event) {
+  const submit = event => {
     event.preventDefault();
-    onSubmit({
-      email:email.trim(),
-      password,
-      displayName:displayName.trim()
-    });
-  }
+
+    if (mode === "signup") {
+      onSignUp(email.trim(), password, displayName.trim());
+    } else {
+      onSignIn(email.trim(), password);
+    }
+  };
 
   return (
-    <main className="nyx-placeholder-page nyx-auth-page">
-      <button className="nyx-back-button" onClick={onBack}>
-        <ArrowLeft size={20}/>
-      </button>
+    <div className="nyx-page nyx-auth-page">
+      <header className="nyx-topbar">
+        <button className="nyx-back-button" onClick={onBack}>
+          <ArrowLeft size={18} />
+          Back
+        </button>
 
-      <div className="nyx-auth-logo">
-        <span className="nyx-logo-mark">N</span>
-      </div>
+        <div className="nyx-brand">
+          <span className="nyx-brand-symbol">N</span>
+          <span>NYX</span>
+        </div>
+      </header>
 
-      <span className="nyx-eyebrow">YOUR CREATIVE UNIVERSE</span>
-      <h1>{authMode==="signup"?"Create your NYX account":"Welcome back"}</h1>
-      <p>
-        {authMode==="signup"
-          ?"Create an account to save your projects and access your private creative space."
-          :"Sign in to continue working on your creative projects."
-        }
-      </p>
+      <main className="nyx-auth-content">
+        <div className="nyx-auth-icon">
+          <Sparkles size={30} />
+        </div>
 
-      <form className="nyx-auth-form" onSubmit={submit}>
-        {authMode==="signup" && (
-          <label>
-            <span>Your name</span>
-            <div className="nyx-auth-input">
-              <User size={18}/>
+        <span className="nyx-eyebrow">YOUR CREATIVE SPACE</span>
+
+        <h1>
+          {mode === "signup" ? "Create your account" : "Welcome back"}
+        </h1>
+
+        <p>
+          {mode === "signup"
+            ? "Create an account to save your conversations and projects."
+            : "Sign in to continue working on your creative projects."}
+        </p>
+
+        <form onSubmit={submit} className="nyx-auth-form">
+          {mode === "signup" && (
+            <label>
+              Your name
               <input
                 value={displayName}
-                onChange={e=>setDisplayName(e.target.value)}
-                placeholder="Your name"
+                onChange={event => setDisplayName(event.target.value)}
+                placeholder="Enter your name"
                 required
               />
-            </div>
-          </label>
-        )}
+            </label>
+          )}
 
-        <label>
-          <span>Email address</span>
-          <div className="nyx-auth-input">
-            <Mail size={18}/>
+          <label>
+            Email address
             <input
               type="email"
               value={email}
-              onChange={e=>setEmail(e.target.value)}
+              onChange={event => setEmail(event.target.value)}
               placeholder="you@example.com"
-              autoComplete="email"
               required
             />
-          </div>
-        </label>
+          </label>
 
-        <label>
-          <span>Password</span>
-          <div className="nyx-auth-input">
-            <Lock size={18}/>
+          <label>
+            Password
             <input
               type="password"
               value={password}
-              onChange={e=>setPassword(e.target.value)}
-              placeholder="At least 6 characters"
+              onChange={event => setPassword(event.target.value)}
+              placeholder="Enter your password"
               minLength={6}
-              autoComplete={authMode==="signup"?"new-password":"current-password"}
               required
             />
-          </div>
-        </label>
+          </label>
 
-        {error && <p className="nyx-auth-error">{error}</p>}
-        {notice && <p className="nyx-auth-notice">{notice}</p>}
+          {error && <div className="nyx-form-error">{error}</div>}
+          {notice && <div className="nyx-form-notice">{notice}</div>}
 
-        <button className="nyx-primary-button" type="submit" disabled={busy}>
-          {busy
-            ? "Please wait..."
-            : authMode==="signup"?"Create account":"Sign in"
-          }
-        </button>
-      </form>
+          <button
+            className="nyx-primary-button nyx-auth-submit"
+            type="submit"
+            disabled={busy}
+          >
+            {busy
+              ? "Please wait..."
+              : mode === "signup"
+                ? "Create account"
+                : "Sign in"}
+            {!busy && <ChevronRight size={18} />}
+          </button>
+        </form>
 
-      <p className="nyx-auth-switch">
-        {authMode==="signup"?"Already have an account?":"New to NYX?"}
-        <button
-          type="button"
-          onClick={()=>setAuthMode(authMode==="signup"?"signin":"signup")}
-        >
-          {authMode==="signup"?"Sign in":"Create account"}
-        </button>
-      </p>
-    </main>
+        <div className="nyx-auth-switch">
+          {mode === "signup"
+            ? "Already have an account?"
+            : "New to NYX?"}
+
+          <button
+            onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+          >
+            {mode === "signup" ? "Sign in" : "Create account"}
+          </button>
+        </div>
+      </main>
+    </div>
   );
 }
-
-/* PROJECT LIBRARY */
 
 function ProjectsPage({
   projects,
@@ -958,780 +1058,478 @@ function ProjectsPage({
   onBack
 }) {
   return (
-    <main className="nyx-placeholder-page nyx-projects-page">
-      <button className="nyx-back-button" onClick={onBack}>
-        <ArrowLeft size={20}/>
-      </button>
+    <div className="nyx-page nyx-projects-page">
+      <header className="nyx-topbar">
+        <button className="nyx-back-button" onClick={onBack}>
+          <ArrowLeft size={18} />
+          Back
+        </button>
 
-      <div className="nyx-placeholder-icon"><FolderOpen size={32}/></div>
-      <span className="nyx-eyebrow">YOUR PRIVATE WORKSPACE</span>
-      <h1>My projects</h1>
-      <p>Your creative conversations and projects, saved to your account.</p>
+        <div className="nyx-brand">
+          <span className="nyx-brand-symbol">N</span>
+          <span>My projects</span>
+        </div>
 
-      <button
-        className="nyx-primary-button"
-        onClick={onImport}
-        disabled={importing}
-      >
-        <Upload size={17}/>
-        {importing?"Importing...":"Import existing conversations"}
-      </button>
+        <button
+          className="nyx-icon-button"
+          onClick={onImport}
+          disabled={importing}
+          title="Import conversations"
+        >
+          <Upload size={19} />
+        </button>
+      </header>
 
-      <div className="nyx-project-list">
-        {projects.length===0 ? (
-          <div className="nyx-empty-history">
-            <FolderOpen size={28}/>
-            <p>No cloud projects yet.</p>
-            <small>Your saved projects will appear here.</small>
+      <main className="nyx-projects-content">
+        <div className="nyx-section-heading">
+          <div>
+            <span className="nyx-eyebrow">YOUR WORKSPACE</span>
+            <h1>My projects</h1>
+            <p>Your saved creative conversations and work.</p>
+          </div>
+        </div>
+
+        {importing && (
+          <div className="nyx-form-notice">Importing your conversations...</div>
+        )}
+
+        {projects.length === 0 ? (
+          <div className="nyx-empty-state nyx-projects-empty">
+            <FolderOpen size={36} />
+            <h3>Your projects will appear here</h3>
+            <p>
+              Start a conversation in any studio. Your saved projects
+              will be listed here.
+            </p>
           </div>
         ) : (
-          projects.map(project=>(
-            <div className="nyx-project-item" key={project.id}>
-              <button
-                className="nyx-project-open"
-                onClick={()=>onOpen(project.id)}
-              >
-                <FolderOpen size={19}/>
-                <span>
-                  <strong>{project.title}</strong>
-                  <small>
-                    {project.studioName||"General project"} · {formatDate(project.updatedAt)}
-                  </small>
-                </span>
-              </button>
+          <div className="nyx-project-list">
+            {projects.map(project => {
+              const studio = findStudio(project.studio);
 
-              <button
-                onClick={()=>onRename(project)}
-                aria-label="Rename project"
-              ><Pencil size={16}/></button>
+              return (
+                <article className="nyx-project-card" key={project.id}>
+                  <button
+                    className="nyx-project-open"
+                    onClick={() => onOpen(project)}
+                  >
+                    <div className="nyx-project-icon">
+                      {studio?.icon || <FolderOpen size={20} />}
+                    </div>
 
-              <button
-                onClick={()=>onDelete(project.id)}
-                aria-label="Delete project"
-              ><Trash2 size={16}/></button>
-            </div>
-          ))
+                    <div className="nyx-project-info">
+                      <strong>{project.title || "Untitled project"}</strong>
+                      <span>{studio?.name || "Creative project"}</span>
+                      <small>
+                        Updated {formatDate(project.updatedAt || project.createdAt)}
+                      </small>
+                    </div>
+
+                    <ChevronRight size={18} />
+                  </button>
+
+                  <div className="nyx-project-actions">
+                    <button onClick={() => onRename(project)}>
+                      <Pencil size={14} />
+                      Rename
+                    </button>
+
+                    <button onClick={() => onDelete(project.id)}>
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
-/* SECONDARY PAGES */
-
-function SecondaryPage({ page,navigate,user,onSignOut }) {
-  const details = {
-    real:{
-      title:"Real",
-      description:"A space for real creative work, videos and projects. Community publishing will be connected in a later stage.",
-      icon:Film
+function SecondaryPage({
+  page,
+  user,
+  onBack,
+  onNavigate,
+  onSignOut
+}) {
+  const content = {
+    real: {
+      icon: <Compass size={28} />,
+      title: "Explore",
+      description:
+        "Discover creative ideas, possibilities and inspiration for your next project.",
+      details: [
+        "Explore the creative studios",
+        "Start a new project",
+        "Collect references in the Research Hub"
+      ]
     },
-    showme:{
-      title:"Show Me",
-      description:"Explore what NYX can help you create, discover studio examples and learn how the creative tools work.",
-      icon:Compass
+    showme: {
+      icon: <Sparkles size={28} />,
+      title: "Show me",
+      description:
+        "A place to explore what NYX can help you create.",
+      details: [
+        "Films and videos",
+        "Music and sound",
+        "Stories and audiobooks",
+        "Characters, scenes and games"
+      ]
     },
-    settings:{
-      title:"Settings",
-      description:"Your account, appearance, privacy and app preferences will live here.",
-      icon:Settings
+    settings: {
+      icon: <Settings size={28} />,
+      title: "Settings",
+      description:
+        "Your account and workspace settings.",
+      details: [
+        "Your account is managed through your NYX sign-in.",
+        "More workspace controls will be added as the platform grows."
+      ]
     },
-    inbox:{
-      title:"Your Inbox",
-      description:"Messages and conversations with other creators will appear here.",
-      icon:MessageCircle
+    inbox: {
+      icon: <MessageCircle size={28} />,
+      title: "Inbox",
+      description:
+        "Your NYX messages and updates.",
+      details: [
+        "You don't have any new messages yet."
+      ]
     },
-    profile:{
-      title:"Your Profile",
-      description:user?.email||"Your creative identity and creator information.",
-      icon:UserRound
+    profile: {
+      icon: <UserRound size={28} />,
+      title: "Your profile",
+      description:
+        user?.email || "Sign in to access your profile.",
+      details: [
+        user?.user_metadata?.full_name
+          ? `Name: ${user.user_metadata.full_name}`
+          : "Your NYX account"
+      ]
     },
-    notifications:{
-      title:"Notifications",
-      description:"Your NYX notifications will appear here.",
-      icon:Bell
+    notifications: {
+      icon: <Bell size={28} />,
+      title: "Notifications",
+      description:
+        "Important updates from your creative workspace.",
+      details: [
+        "You're all caught up. New notifications will appear here."
+      ]
     }
   };
 
-  const detail=details[page]||details.showme;
-  const Icon=detail.icon;
+  const current = content[page] || content.real;
 
   return (
-    <main className="nyx-placeholder-page">
-      <div className="nyx-placeholder-icon"><Icon size={32}/></div>
-      <span className="nyx-eyebrow">THE CREATIVE UNIVERSE</span>
-      <h1>{detail.title}</h1>
-      <p>{detail.description}</p>
-
-      {page==="profile" && user && (
-        <button className="nyx-primary-button" onClick={onSignOut}>
-          <LogOut size={17}/> Sign out
+    <div className="nyx-page nyx-secondary-page">
+      <header className="nyx-topbar">
+        <button className="nyx-back-button" onClick={onBack}>
+          <ArrowLeft size={18} />
+          Back
         </button>
-      )}
 
-      <small>
-        THIS AREA WILL BE CONNECTED IN A FUTURE DEVELOPMENT STAGE.
-      </small>
+        <div className="nyx-brand">
+          <span className="nyx-brand-symbol">N</span>
+          <span>NYX</span>
+        </div>
+      </header>
 
-      <button className="nyx-primary-button" onClick={()=>navigate("home")}>
-        <ArrowLeft size={17}/> Return home
-      </button>
-    </main>
+      <main className="nyx-secondary-content">
+        <div className="nyx-secondary-icon">{current.icon}</div>
+
+        <span className="nyx-eyebrow">NYX WORKSPACE</span>
+        <h1>{current.title}</h1>
+        <p>{current.description}</p>
+
+        <div className="nyx-secondary-details">
+          {current.details.map((detail, index) => (
+            <div className="nyx-secondary-detail" key={index}>
+              <span className="nyx-detail-check">
+                <Check size={15} />
+              </span>
+              {detail}
+            </div>
+          ))}
+        </div>
+
+        {page === "profile" && user && (
+          <button
+            className="nyx-secondary-action"
+            onClick={onSignOut}
+          >
+            <LogOut size={17} />
+            Sign out
+          </button>
+        )}
+
+        {page === "profile" && !user && (
+          <button
+            className="nyx-primary-button"
+            onClick={() => onNavigate("auth")}
+          >
+            Sign in
+            <ChevronRight size={18} />
+          </button>
+        )}
+
+        {["real", "showme"].includes(page) && (
+          <button
+            className="nyx-primary-button"
+            onClick={() => onNavigate("create")}
+          >
+            Explore studios
+            <ChevronRight size={18} />
+          </button>
+        )}
+      </main>
+    </div>
   );
-}
-
-/* MAIN APP */
-
-export default function App() {
-  const [page,setPage] = useState("home");
-  const [studioId,setStudioId] = useState(null);
-  const [chats,setChats] = useState(loadConversations);
-  const [projects,setProjects] = useState([]);
-  const [activeId,setActiveId] = useState(null);
-  const [search,setSearch] = useState("");
-  const [genre,setGenre] = useState("");
-  const [notice,setNotice] = useState("");
-
-  const [user,setUser] = useState(null);
-  const [authMode,setAuthMode] = useState("signup");
-  const [authBusy,setAuthBusy] = useState(false);
-  const [authError,setAuthError] = useState("");
-  const [authNotice,setAuthNotice] = useState("");
-  const [importing,setImporting] = useState(false);
-  const [authLoading,setAuthLoading] = useState(true);
-
-  const currentStudio=findStudio(studioId);
-
-  /* AUTH SESSION */
-
-  useEffect(()=>{
-    let mounted=true;
-
-    async function loadSession() {
-      const {data,error}=await supabase.auth.getSession();
-
-      if (!mounted) return;
-
-      if (error) {
-        setNotice("Could not check your account session.");
-      }
-
-      setUser(data?.session?.user||null);
-      setAuthLoading(false);
-    }
-
-    loadSession();
-
-    const {data:listener}=supabase.auth.onAuthStateChange(
-      (_event,session)=>{
-        if (mounted) {
-          setUser(session?.user||null);
-          setAuthLoading(false);
-        }
-      }
-    );
-
-    return ()=>{
-      mounted=false;
-      listener?.subscription?.unsubscribe();
-    };
-  },[]);
-
-  /* KEEP LOCAL CONVERSATIONS */
-
-  useEffect(()=>{
-    try {
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(chats));
-    } catch {
-      setNotice("Your device could not save more conversations.");
-    }
-  },[chats]);
-
-  /* LOAD PRIVATE PROJECTS AFTER SIGN IN */
-
-  useEffect(()=>{
-    if (!user) {
-      setProjects([]);
-      return;
-    }
-
-    let cancelled=false;
-
-    async function loadProjects() {
-      const {data,error}=await supabase
-        .from("nyx_projects")
-        .select("*")
-        .order("updated_at",{ascending:false});
-
-      if (cancelled) return;
-
-      if (error) {
-        setNotice("Could not load your cloud projects. Your device conversations are still available.");
-        return;
-      }
-
-      const rows=data||[];
-
-      const cloudChats=rows.map(row=>{
-        const content=row.content||{};
-        const studio=findStudio(row.studio);
-
-        const messages=(content.messages||[]).map(message=>({
-          ...message,
-          createdAt:message.createdAt||Date.now()
-        }));
-
-        return {
-          id:content.localChatId||row.id,
-          cloudId:row.id,
-          title:row.title||"Untitled Project",
-          studioId:row.studio||null,
-          studioName:content.studioName||studio?.name||null,
-          createdAt:row.created_at
-            ? new Date(row.created_at).getTime()
-            : Date.now(),
-          updatedAt:row.updated_at
-            ? new Date(row.updated_at).getTime()
-            : Date.now(),
-          messages
-        };
-      });
-
-      setProjects(cloudChats);
-
-      setChats(previous=>{
-        const localIds=new Set(previous.map(chat=>chat.id));
-
-        const additions=cloudChats.filter(
-          chat=>!localIds.has(chat.id)
-        );
-
-        return [...additions,...previous];
-      });
-    }
-
-    loadProjects();
-
-    return ()=>{cancelled=true;};
-  },[user?.id]);
-
-  /* CLOUD SAVE */
-
-  async function saveChatToCloud(chat) {
-    if (!user) return null;
-
-    const safeMessages=(chat.messages||[]).map(message=>({
-      ...message,
-      audio:message.audio?null:message.audio,
-      audioSavedOnDevice:message.audio
-        ?true
-        :Boolean(message.audioSavedOnDevice)
-    }));
-
-    const content={
-      localChatId:chat.id,
-      studioName:chat.studioName||null,
-      messages:safeMessages
-    };
-
-    const record={
-      user_id:user.id,
-      title:chat.title||"Untitled Project",
-      studio:chat.studioId||null,
-      content
-    };
-
-    let result;
-
-    if (chat.cloudId) {
-      result=await supabase
-        .from("nyx_projects")
-        .update(record)
-        .eq("id",chat.cloudId)
-        .eq("user_id",user.id)
-        .select()
-        .single();
-    } else {
-      result=await supabase
-        .from("nyx_projects")
-        .insert(record)
-        .select()
-        .single();
-    }
-
-    if (result.error) {
-      console.error("NYX project save error:",result.error);
-      setNotice("Your conversation is saved on this device, but cloud saving failed.");
-      return null;
-    }
-
-    const cloudId=result.data.id;
-
-    const updatedChat={...chat,cloudId};
-
-    setChats(previous=>previous.map(item=>
-      item.id===chat.id?updatedChat:item
-    ));
-
-    setProjects(previous=>{
-      const without=previous.filter(item=>item.id!==chat.id);
-      return [updatedChat,...without];
-    });
-
-    return cloudId;
-  }
-
-  /* NAVIGATION */
-
-  function navigate(destination) {
-    setPage(destination);
-
-    if (destination!=="studio") {
-      setStudioId(null);
-    }
-
-    setNotice("");
-  }
-
-  function requireAuth() {
-    setAuthMode("signup");
-    setAuthError("");
-    setAuthNotice("");
-    setPage("auth");
-    setNotice("");
-  }
-
-  function openStudio(id) {
-    setStudioId(id);
-    setPage("studio");
-    setGenre("");
-    setNotice("");
-
-    const activeBelongsHere=chats.some(
-      chat=>chat.id===activeId&&chat.studioId===id
-    );
-
-    if (!activeBelongsHere) {
-      const latest=chats.find(chat=>chat.studioId===id);
-      setActiveId(latest?.id||null);
-    }
-  }
-
-  /* CREATE CONVERSATION */
-
-  function createChat(targetStudio=null) {
-    if (!user) {
-      requireAuth();
-      return;
-    }
-
-    const studio=targetStudio?findStudio(targetStudio):null;
-    const now=Date.now();
-
-    const chat={
-      id:makeId(),
-      cloudId:null,
-      title:"New conversation",
-      studioId:targetStudio,
-      studioName:studio?.name||null,
-      createdAt:now,
-      updatedAt:now,
-      messages:[]
-    };
-
-    setChats(previous=>[chat,...previous]);
-    setActiveId(chat.id);
-  }
-
-  function newConversation() {
-    createChat(page==="studio"?studioId:null);
-  }
-
-  /* SEND MESSAGE */
-
-  function sendMessage(payload) {
-    if (!user) {
-      requireAuth();
-      return;
-    }
-
-    const targetStudio=page==="studio"?studioId:null;
-
-    let chat=chats.find(item=>
-      item.id===activeId&&item.studioId===targetStudio
-    );
-
-    if (!chat) {
-      const studio=targetStudio?findStudio(targetStudio):null;
-      const now=Date.now();
-
-      chat={
-        id:makeId(),
-        cloudId:null,
-        title:"New conversation",
-        studioId:targetStudio,
-        studioName:studio?.name||null,
-        createdAt:now,
-        updatedAt:now,
-        messages:[]
-      };
-    }
-
-    const now=Date.now();
-
-    const message={
-      id:makeId(),
-      role:"user",
-      text:payload.text||"",
-      audio:payload.audio||null,
-      files:payload.files||[],
-      createdAt:now
-    };
-
-    const updated={
-      ...chat,
-      title:
-        chat.messages.length===0&&payload.text
-          ?getTitle(payload.text)
-          :chat.title,
-      messages:[...chat.messages,message],
-      updatedAt:now
-    };
-
-    setChats(previous=>{
-      const exists=previous.some(item=>item.id===chat.id);
-
-      return exists
-        ?previous.map(item=>item.id===chat.id?updated:item)
-        :[updated,...previous];
-    });
-
-    setActiveId(chat.id);
-    saveChatToCloud(updated);
-  }
-
-  /* DELETE CONVERSATION */
-
-  async function deleteChat(id) {
-    const chat=chats.find(item=>item.id===id);
-
-    if (chat?.cloudId&&user) {
-      const {error}=await supabase
-        .from("nyx_projects")
-        .delete()
-        .eq("id",chat.cloudId)
-        .eq("user_id",user.id);
-
-      if (error) {
-        setNotice("Could not delete the cloud project. Please try again.");
-        return;
-      }
-    }
-
-    setChats(previous=>previous.filter(item=>item.id!==id));
-    setProjects(previous=>previous.filter(item=>item.id!==id));
-
-    if (activeId===id) setActiveId(null);
-    setNotice("Project deleted.");
-  }
-
-  /* RENAME PROJECT */
-
-  async function renameProject(project) {
-    const nextTitle=window.prompt(
-      "Enter a new project name:",
-      project.title
-    );
-
-    if (nextTitle===null) return;
-
-    const title=nextTitle.trim();
-
-    if (!title) {
-      setNotice("A project name cannot be empty.");
-      return;
-    }
-
-    const updated={...project,title,updatedAt:Date.now()};
-
-    setChats(previous=>previous.map(item=>
-      item.id===project.id?updated:item
-    ));
-
-    setProjects(previous=>previous.map(item=>
-      item.id===project.id?updated:item
-    ));
-
-    if (project.cloudId&&user) {
-      const {error}=await supabase
-        .from("nyx_projects")
-        .update({title})
-        .eq("id",project.cloudId)
-        .eq("user_id",user.id);
-
-      if (error) {
-        setNotice("The project name could not be updated in the cloud.");
-        return;
-      }
-    }
-
-    setNotice("Project renamed.");
-  }
-
-  /* IMPORT OLD DEVICE CONVERSATIONS */
-
-  async function importConversations() {
-    if (!user) {
-      requireAuth();
-      return;
-    }
-
-    setImporting(true);
-
-    try {
-      const {data:existing,error:fetchError}=await supabase
-        .from("nyx_projects")
-        .select("content")
-        .eq("user_id",user.id);
-
-      if (fetchError) throw fetchError;
-
-      const importedIds=new Set(
-        (existing||[]).map(row=>row.content?.localChatId).filter(Boolean)
-      );
-
-      const toImport=chats.filter(chat=>
-        !chat.cloudId&&!importedIds.has(chat.id)
-      );
-
-      let successCount=0;
-
-      for (const chat of toImport) {
-        const safeMessages=(chat.messages||[]).map(message=>({
-          ...message,
-          audio:message.audio?null:message.audio,
-          audioSavedOnDevice:message.audio
-            ?true
-            :Boolean(message.audioSavedOnDevice)
-        }));
-
-        const {data,error}=await supabase
-          .from("nyx_projects")
-          .insert({
-            user_id:user.id,
-            title:chat.title||"Untitled Project",
-            studio:chat.studioId||null,
-            content:{
-              localChatId:chat.id,
-              studioName:chat.studioName||null,
-              messages:safeMessages
-            }
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error("NYX import error:",error);
-          continue;
-        }
-
-        successCount++;
-
-        const updated={...chat,cloudId:data.id};
-
-        setChats(previous=>previous.map(item=>
-          item.id===chat.id?updated:item
-        ));
-
-        setProjects(previous=>[
-          updated,
-          ...previous.filter(item=>item.id!==chat.id)
-        ]);
-      }
-
-      setNotice(
-        successCount
-          ?`${successCount} conversation${successCount===1?"":"s"} imported into your account.`
-          :"There are no new conversations to import."
-      );
-
-    } catch (error) {
-      console.error(error);
-      setNotice("Could not import conversations. Please try again.");
-    } finally {
+}    } finally {
       setImporting(false);
     }
-  }
+  };
 
-  /* SIGN UP AND SIGN IN */
-
-  async function submitAuth(form) {
+  const signIn = async (email, password) => {
     setAuthBusy(true);
     setAuthError("");
     setAuthNotice("");
 
     try {
-      if (authMode==="signup") {
-        const {data,error}=await supabase.auth.signUp({
-          email:form.email,
-          password:form.password,
-          options:{
-            data:{
-              display_name:form.displayName
-            }
-          }
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        if (data.session) {
-          setUser(data.user);
-          setPage("home");
-          setNotice("Your NYX account has been created.");
-        } else {
-          setAuthNotice(
-            "Account created. Check your email for a confirmation link before signing in."
-          );
-          setAuthMode("signin");
-        }
-      } else {
-        const {data,error}=await supabase.auth.signInWithPassword({
-          email:form.email,
-          password:form.password
-        });
-
-        if (error) throw error;
-
-        setUser(data.user);
-        setPage("home");
-        setNotice("Welcome back to NYX.");
-      }
+      setPage("home");
+      setNotice("Welcome back to NYX.");
     } catch (error) {
-      setAuthError(
-        error?.message||"Something went wrong. Please try again."
-      );
+      setAuthError(error.message || "Unable to sign in.");
     } finally {
       setAuthBusy(false);
     }
-  }
+  };
 
-  async function signOut() {
-    const {error}=await supabase.auth.signOut();
+  const signUp = async (email, password, displayName) => {
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthNotice("");
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: displayName
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.session) {
+        setPage("home");
+        setNotice("Your NYX account has been created.");
+      } else {
+        setAuthNotice(
+          "Account created. Check your email to confirm your account, then sign in."
+        );
+        setAuthMode("signin");
+      }
+    } catch (error) {
+      setAuthError(error.message || "Unable to create your account.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
 
     if (error) {
-      setNotice("Could not sign out. Please try again.");
+      setNotice("Unable to sign out. Please try again.");
       return;
     }
 
     setUser(null);
-    setProjects([]);
     setActiveId(null);
+    setStudioId(null);
     setPage("home");
     setNotice("You have signed out.");
-  }
+  };
 
-  /* OPEN A SAVED PROJECT */
+  const openProject = project => {
+    setStudioId(project.studio);
+    setActiveId(project.id);
+    setPage("studio");
+    setNotice("");
+  };
 
-  function openProject(id) {
-    const project=chats.find(item=>item.id===id);
-
-    if (!project) {
-      setNotice("This project could not be found.");
+  const openResearch = () => {
+    if (!user) {
+      setAuthMode("signin");
+      setPage("auth");
+      setAuthError("");
+      setAuthNotice("Sign in to add research to your projects.");
       return;
     }
 
-    setActiveId(project.id);
-    setStudioId(project.studioId||null);
-    setPage(project.studioId?"studio":"create");
-  }
+    setPage("research");
+    setNotice("");
+  };
 
-  /* PAGE DISPLAY */
+  const attachResearch = async references => {
+    if (!user) {
+      setPage("auth");
+      setAuthNotice("Sign in to save research to your projects.");
+      return;
+    }
+
+    if (!references?.length) {
+      setPage("studio");
+      return;
+    }
+
+    let chat = chats.find(item => item.id === activeId);
+
+    if (!chat || chat.studio !== studioId) {
+      const now = new Date().toISOString();
+
+      chat = {
+        id: makeId(),
+        cloudId: null,
+        title: "Research project",
+        studio: studioId || "storytelling",
+        messages: [],
+        genre,
+        researchReferences: [],
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
+    const existingReferences = chat.researchReferences || [];
+    const existingUrls = new Set(
+      existingReferences.map(reference => reference.url)
+    );
+
+    const newReferences = references.filter(
+      reference => !existingUrls.has(reference.url)
+    );
+
+    const updatedChat = {
+      ...chat,
+      researchReferences: [
+        ...existingReferences,
+        ...newReferences
+      ],
+      updatedAt: new Date().toISOString()
+    };
+
+    setChats(previous => {
+      const exists = previous.some(item => item.id === updatedChat.id);
+
+      return exists
+        ? previous.map(item =>
+            item.id === updatedChat.id ? updatedChat : item
+          )
+        : [updatedChat, ...previous];
+    });
+
+    setActiveId(updatedChat.id);
+    setStudioId(updatedChat.studio);
+    setPage("studio");
+
+    await saveChatToCloud(updatedChat);
+
+    setNotice(
+      newReferences.length
+        ? `${newReferences.length} research reference(s) attached to your project.`
+        : "Those references are already attached to this project."
+    );
+  };
+
+  const navigate = targetPage => {
+    setPage(targetPage);
+    setNotice("");
+  };
 
   if (authLoading) {
     return (
-      <div className="nyx-app">
-        <main className="nyx-placeholder-page">
-          <div className="nyx-placeholder-icon">
-            <Sparkles size={32}/>
-          </div>
-          <h1>NYX</h1>
-          <p>Preparing your creative universe...</p>
-        </main>
+      <div className="nyx-loading-screen">
+        <div className="nyx-loading-logo">N</div>
+        <strong>NYX</strong>
+        <span>Preparing your creative space...</span>
       </div>
     );
   }
 
   return (
     <div className="nyx-app">
-
-      {page==="home" && (
+      {page === "home" && (
         <HomePage
-          navigate={navigate}
-          openStudio={openStudio}
-          search={search}
-          setSearch={setSearch}
+          onOpenStudio={openStudio}
+          onNavigate={navigate}
           user={user}
-          setNotice={setNotice}
         />
       )}
 
-      {page==="create" && (
-        <ChatPage
-          key="general-chat"
-          studio={null}
-          chats={chats.filter(chat=>chat.studioId===null)}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          onBack={()=>navigate("home")}
-          onNew={newConversation}
-          onSend={sendMessage}
-          onDelete={deleteChat}
-          genre={genre}
-          setGenre={setGenre}
-          setNotice={setNotice}
+      {page === "create" && (
+        <HomePage
+          onOpenStudio={openStudio}
+          onNavigate={navigate}
           user={user}
-          onRequireAuth={requireAuth}
         />
       )}
 
-      {page==="studio" && currentStudio && (
+      {page === "studio" && (
         <ChatPage
-          key={currentStudio.id}
           studio={currentStudio}
-          chats={chats.filter(
-            chat=>chat.studioId===currentStudio.id
-          )}
+          chats={chats}
           activeId={activeId}
           setActiveId={setActiveId}
-          onBack={()=>navigate("home")}
-          onNew={newConversation}
+          onBack={() => navigate("home")}
+          onNew={() => createChat(studioId)}
           onSend={sendMessage}
           onDelete={deleteChat}
+          onResearch={openResearch}
           genre={genre}
           setGenre={setGenre}
-          setNotice={setNotice}
           user={user}
-          onRequireAuth={requireAuth}
+          onRequireAuth={() => {
+            setAuthMode("signin");
+            setPage("auth");
+          }}
         />
       )}
 
-      {page==="auth" && (
+      {page === "research" && (
+        <ResearchHub
+          studio={currentStudio}
+          onBack={() => navigate(studioId ? "studio" : "home")}
+          onAttach={attachResearch}
+        />
+      )}
+
+      {page === "auth" && (
         <AuthPage
-          authMode={authMode}
-          setAuthMode={mode=>{
-            setAuthMode(mode);
-            setAuthError("");
-            setAuthNotice("");
-          }}
-          onSubmit={submitAuth}
+          mode={authMode}
+          setMode={setAuthMode}
+          onSignIn={signIn}
+          onSignUp={signUp}
           busy={authBusy}
           error={authError}
           notice={authNotice}
-          onBack={()=>navigate("home")}
+          onBack={() => navigate("home")}
         />
       )}
 
-      {page==="projects" && (
+      {page === "projects" && (
         <ProjectsPage
           projects={projects}
           onOpen={openProject}
@@ -1739,7 +1537,7 @@ export default function App() {
           onDelete={deleteChat}
           onImport={importConversations}
           importing={importing}
-          onBack={()=>navigate("home")}
+          onBack={() => navigate("home")}
         />
       )}
 
@@ -1753,38 +1551,61 @@ export default function App() {
       ].includes(page) && (
         <SecondaryPage
           page={page}
-          navigate={navigate}
           user={user}
+          onBack={() => navigate("home")}
+          onNavigate={navigate}
           onSignOut={signOut}
         />
       )}
 
-      <nav className="nyx-bottom-nav">
-        {NAV_ITEMS.map(item=>{
-          const Icon=item.icon;
-
-          return (
-            <button
-              key={item.id}
-              className={page===item.id?"active":""}
-              onClick={()=>navigate(item.id)}
-            >
-              <Icon size={20}/>
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
       {notice && (
-        <div className="nyx-notice">
+        <div className="nyx-toast">
           <span>{notice}</span>
-          <button onClick={()=>setNotice("")}>
-            <X size={16}/>
+          <button
+            className="nyx-icon-button"
+            onClick={() => setNotice("")}
+            title="Dismiss"
+          >
+            <X size={15} />
           </button>
         </div>
       )}
 
+      {["home", "create"].includes(page) && (
+        <nav className="nyx-bottom-nav">
+          <button
+            className={page === "home" ? "active" : ""}
+            onClick={() => navigate("home")}
+          >
+            <Home size={19} />
+            <span>Home</span>
+          </button>
+
+          <button
+            className={page === "create" ? "active" : ""}
+            onClick={() => navigate("create")}
+          >
+            <Plus size={19} />
+            <span>Create</span>
+          </button>
+
+          <button
+            onClick={() => navigate("projects")}
+          >
+            <FolderOpen size={19} />
+            <span>Projects</span>
+          </button>
+
+          <button
+            onClick={() => navigate(user ? "profile" : "auth")}
+          >
+            <UserRound size={19} />
+            <span>Account</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }
+
+export default App;
