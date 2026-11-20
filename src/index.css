@@ -1299,3 +1299,475 @@ p { color: var(--muted); line-height: 1.7; }
     height: 18px;
   }
 }
+
+/* =====================================
+   NYX CURRENT APP LAYOUT
+===================================== */
+
+.nyx-app {
+  min-height: 100vh;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  background: #08080d;
+  color: #f5f0ff;
+}
+
+/* TOP HEADER */
+
+.nyx-topbar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 17px;
+  background: #08080d;
+  border-bottom: 1px solid #292331;
+}
+
+.nyx-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #c084fc;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.nyx-account-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #49315f;
+  border-radius: 12px;
+  background: #171020;
+  color: #e9d5ff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.nyx-topbar-title {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #e9d5ff;
+  font-weight: 700;
+}
+
+/* MAIN PAGES */
+
+.nyx-page-content {
+  width: min(1100px, 100%);
+  min-height: 65vh;
+  margin: 0 auto;
+  padding: 25px 17px 40px;
+  background: #08080d;
+}
+
+.nyx-page-content h1 {
+  margin: 8px 0;
+  font-size: clamp(24px, 5vw, 32px);
+}
+
+.nyx-page-content > p {
+  margin: 5px 0 22px;
+  color: #a99bb9;
+  font-size: 13px;
+}
+
+.nyx-search-input,
+.nyx-auth-card input {
+  width: 100%;
+  min-height: 45px;
+  padding: 11px 14px;
+  border: 1px solid #352344;
+  border-radius: 12px;
+  background: #121119;
+  color: #f5efff;
+  outline: none;
+}
+
+.nyx-search-input {
+  margin: 12px 0 20px;
+}
+
+.nyx-search-input:focus,
+.nyx-auth-card input:focus {
+  border-color: #a855f7;
+}
+
+.nyx-studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nyx-studio-card {
+  min-height: 175px;
+  padding: 15px;
+  border: 1px solid #30243d;
+  border-radius: 16px;
+  background: #121119;
+}
+
+.nyx-studio-card:hover {
+  border-color: #9b68ed;
+  background: #191323;
+}
+
+.nyx-studio-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 12px;
+  place-items: center;
+  border-radius: 12px;
+  background: #241832;
+}
+
+.nyx-studio-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nyx-studio-description {
+  margin-top: 7px;
+  color: #a99bb9;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.nyx-studio-open {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 12px;
+  color: #c084fc;
+  font-size: 11px;
+}
+
+/* SIX-ITEM BOTTOM NAVIGATION */
+
+.nyx-bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: center;
+  gap: 0;
+  min-height: 70px;
+  padding: 7px 5px calc(7px + env(safe-area-inset-bottom));
+  border-top: 1px solid #30243d;
+  background: rgba(8, 8, 13, .98);
+  backdrop-filter: blur(18px);
+}
+
+.nyx-bottom-nav .nyx-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  min-height: 49px;
+  padding: 5px 1px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #93869f;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.nyx-bottom-nav .nyx-nav-item svg {
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+}
+
+.nyx-bottom-nav .nyx-nav-item.active {
+  background: #1b1229;
+  color: #d8b4fe;
+}
+
+.nyx-bottom-nav .nyx-nav-item:hover {
+  color: #fff;
+}
+
+/* ACCOUNT AND SETTINGS */
+
+.nyx-account-card,
+.nyx-settings-item,
+.nyx-project-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 12px 0;
+  padding: 15px;
+  border: 1px solid #30243d;
+  border-radius: 14px;
+  background: #121119;
+  color: #f5efff;
+}
+
+.nyx-account-avatar {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 15px;
+  background: #291a3b;
+  color: #d8b4fe;
+}
+
+.nyx-account-card p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.nyx-settings-item span,
+.nyx-project-item span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.nyx-settings-item small,
+.nyx-project-item small {
+  color: #a99bb9;
+  font-size: 11px;
+}
+
+.nyx-action-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  margin: 10px 0;
+  padding: 12px 15px;
+  border: 1px solid #352344;
+  border-radius: 12px;
+  background: #171020;
+  color: #e9d5ff;
+  text-align: left;
+}
+
+/* REELS */
+
+.nyx-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #c084fc;
+}
+
+.nyx-empty-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 220px;
+  margin: 20px 0;
+  padding: 22px;
+  border: 1px solid #30243d;
+  border-radius: 17px;
+  background: #121119;
+  text-align: center;
+}
+
+.nyx-empty-chat svg {
+  color: #c084fc;
+}
+
+.nyx-empty-chat h3 {
+  margin: 5px 0;
+}
+
+.nyx-empty-chat p {
+  max-width: 420px;
+  font-size: 12px;
+}
+
+/* CHAT HEADER */
+
+.nyx-back-button,
+.nyx-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid #352344;
+  border-radius: 11px;
+  background: #171020;
+  color: #e9d5ff;
+}
+
+.nyx-chat-sidebar {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #30243d;
+  border-radius: 15px;
+  background: #121119;
+}
+
+.nyx-chat-sidebar h3 {
+  font-size: 14px;
+}
+
+.nyx-chat-sidebar > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #49315f;
+  border-radius: 10px;
+  background: #21152f;
+  color: #e9d5ff;
+}
+
+.nyx-chat-heading {
+  padding: 15px;
+  border-bottom: 1px solid #30243d;
+}
+
+.nyx-chat-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.nyx-chat-heading p {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+
+.nyx-service-note {
+  padding: 0 12px 10px;
+  color: #82758e;
+  font-size: 10px;
+  text-align: center;
+}
+
+/* AUTHENTICATION */
+
+.nyx-auth-page {
+  display: grid;
+  min-height: 80vh;
+  align-content: center;
+  justify-items: center;
+  padding: 20px;
+}
+
+.nyx-auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  width: min(420px, 100%);
+  padding: 25px;
+  border: 1px solid #352344;
+  border-radius: 20px;
+  background: #121119;
+}
+
+.nyx-auth-card > svg {
+  color: #c084fc;
+}
+
+.nyx-auth-card h1,
+.nyx-auth-card p {
+  margin: 0;
+}
+
+.nyx-auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nyx-auth-card form button {
+  min-height: 45px;
+  border: 0;
+  border-radius: 12px;
+  background: #8b5cf6;
+  color: white;
+  font-weight: 700;
+}
+
+.nyx-text-button {
+  border: 0;
+  background: transparent;
+  color: #c084fc;
+  font-size: 12px;
+}
+
+/* MOBILE */
+
+@media (max-width: 420px) {
+  .nyx-topbar {
+    min-height: 59px;
+    padding: 8px 12px;
+  }
+
+  .nyx-brand {
+    font-size: 19px;
+  }
+
+  .nyx-account-button {
+    min-height: 35px;
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .nyx-page-content {
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+
+  .nyx-studio-grid {
+    gap: 9px;
+  }
+
+  .nyx-studio-card {
+    padding: 12px;
+  }
+
+  .nyx-bottom-nav {
+    min-height: 67px;
+    padding-right: 3px;
+    padding-left: 3px;
+  }
+
+  .nyx-bottom-nav .nyx-nav-item {
+    gap: 4px;
+    font-size: 9px;
+  }
+
+  .nyx-bottom-nav .nyx-nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+}
