@@ -799,19 +799,25 @@ export default function App() {
             />
           </div>
 
-          <div className="nyx-studio-grid">
-            {filteredStudios.map((studio) => (
-              <StudioCard
-                key={studio.id}
-                studio={studio}
-                onClick={() => startConversation(studio)}
-              />
-            ))}
-          </div>
+          
+<Home
+  onNavigate={(nextPage) => {
+    if (nextPage === "studio") {
+      startConversation(STUDIOS[0]);
+    } else if (nextPage === "research") {
+      setActiveStudio(findStudio("research"));
+      setPage("research");
+    } else {
+      setPage(nextPage);
+    }
+  }}
+  onNewChat={() => startConversation(STUDIOS[0])}
+/>
 
 
-          </section>
-        </section>
+
+          
+        
       )}
     </main>
   );
