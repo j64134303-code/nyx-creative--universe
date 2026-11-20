@@ -1771,3 +1771,71 @@ p { color: var(--muted); line-height: 1.7; }
     height: 18px;
   }
 }
+
+/* NYX PROJECTS — DARK THEME FIX */
+.nyx-page-content {
+  color: #f5efff;
+  background: #0b0712;
+}
+
+.nyx-page-content h1,
+.nyx-page-content h2 {
+  color: #ffffff;
+}
+
+.nyx-page-content > p {
+  color: #a99bbd;
+}
+
+.nyx-project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 16px;
+  background: #171020 !important;
+  border: 1px solid #30213f;
+  border-radius: 16px;
+  color: #ffffff !important;
+}
+
+.nyx-project-item button {
+  background: transparent !important;
+  color: #eee5ff !important;
+  border: none;
+}
+
+.nyx-project-item button:first-child {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex: 1;
+  text-align: left;
+}
+
+.nyx-project-item strong {
+  display: block;
+  color: #ffffff !important;
+}
+
+.nyx-project-item small {
+  display: block;
+  margin-top: 5px;
+  color: #a99bbd !important;
+}
+
+.nyx-project-item button:last-child {
+  color: #c084fc !important;
+}
+
+.nyx-empty-chat {
+  background: #171020 !important;
+  color: #f5efff !important;
+  border: 1px solid #30213f;
+  border-radius: 18px;
+}
+
+.nyx-empty-chat p {
+  color: #a99bbd !important;
+}
