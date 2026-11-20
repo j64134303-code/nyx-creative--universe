@@ -751,73 +751,22 @@ export default function App() {
           </p>
         </section>
       ) : (
-        <section className="nyx-home">
-          <div className="nyx-hero">
-            <span className="nyx-eyebrow">
-              YOUR CREATIVE UNIVERSE
-            </span>
-
-            <h1>Imagine it. Create it. Bring it to life.</h1>
-
-            <p>
-              Welcome to NYX — a creative space where your ideas
-              become stories, music, films, characters and more.
-            </p>
-
-            <div className="nyx-hero-actions">
-              <button
-                onClick={() => {
-                  const firstStudio = STUDIOS[0];
-                  startConversation(firstStudio);
-                }}
-              >
-                <Sparkles size={18} /> Start creating
-              </button>
-
-              <button onClick={() => setPage("projects")}>
-                <FolderOpen size={18} /> My projects
-              </button>
-            </div>
-          </div>
-
-          <div className="nyx-studios-heading">
-            <div>
-              <h2>Explore the studios</h2>
-              <p>
-                Each studio has its own tools, workspace and conversations.
-              </p>
-            </div>
-          </div>
-
-          <div className="nyx-search">
-            <Search size={18} />
-            <input
-              type="search"
-              placeholder="Find a studio..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-
-          
-<Home
-  onNavigate={(nextPage) => {
-    if (nextPage === "studio") {
-      startConversation(STUDIOS[0]);
-    } else if (nextPage === "research") {
-      setActiveStudio(findStudio("research"));
-      setPage("research");
-    } else {
-      setPage(nextPage);
-    }
-  }}
-  onNewChat={() => startConversation(STUDIOS[0])}
-/>
-
-
-
-          
-        
+      
+) : (
+  <Home
+    onNavigate={(nextPage) => {
+      if (nextPage === "studio") {
+        startConversation(STUDIOS[0]);
+      } else if (nextPage === "research") {
+        setActiveStudio(findStudio("research"));
+        setPage("research");
+      } else {
+        setPage(nextPage);
+      }
+    }}
+    onNewChat={() => startConversation(STUDIOS[0])}
+  />
+)}
       )}
     </main>
   );
