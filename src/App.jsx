@@ -1,17 +1,18 @@
-import React, { useEffect, useRef, useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import {
-  Home as HomeIcon, Plus, Film, Music, BookOpen, Mic, Gamepad2,
+  Sparkles, Plus, Film, Music, BookOpen, Mic, Gamepad2,
   Megaphone, UserRound, AudioLines, Clapperboard, Laugh,
-  Upload, Bell, MessageCircle, Send, Paperclip, ArrowLeft,
-  X, Trash2, Clock, Sparkles, ChevronRight, FolderOpen,
-  Search, Headphones, Video, CircleStop, Camera, Layers,
-  Star, Compass, Settings, LogOut, Pencil, Check,
-  Link as LinkIcon, ExternalLink
+  MessageCircle, Send, Paperclip, ArrowLeft, Trash2,
+  ChevronRight, FolderOpen, Search, Headphones, Settings,
+  LogOut, Link as LinkIcon, ExternalLink, House, Compass,
+  CircleUserRound, Video
 } from "lucide-react";
 
 import { supabase } from "./lib/supabase";
 import ResearchHub from "./ResearchHub";
 import Home from "./Home";
+
 const STORAGE_KEY = "nyx-conversations-v1";
 
 const STUDIOS = [
@@ -101,6 +102,15 @@ const STUDIOS = [
   }
 ];
 
+const NAVIGATION = [
+  { name: "Home", page: "home", icon: House },
+  { name: "Reels", page: "reels", icon: Film },
+  { name: "Studios", page: "studio", icon: Clapperboard },
+  { name: "Projects", page: "projects", icon: FolderOpen },
+  { name: "Research", page: "research", icon: Compass },
+  { name: "Account", page: "account", icon: CircleUserRound }
+];
+
 const makeId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -124,7 +134,9 @@ const formatDate = (date) => {
 const getTitle = (text) => {
   const clean = text.trim();
   if (!clean) return "New conversation";
-  return clean.length > 35 ? `${clean.slice(0, 35)}...` : clean;
+  return clean.length > 35
+    ? `${clean.slice(0, 35)}...`
+    : clean;
 };
 
 function StudioCard({ studio, onClick }) {
@@ -168,9 +180,7 @@ function MessageBubble({ item }) {
       }`}
     >
       <div className="nyx-message-bubble">
-        {item.text && (
-          <p>{item.text}</p>
-        )}
+        {item.text && <p>{item.text}</p>}
 
         {item.attachments?.map((file, index) => (
           <div className="nyx-message-attachment" key={index}>
@@ -221,10 +231,7 @@ function Composer({ onSend, disabled = false }) {
   };
 
   return (
-    <form
-      className="nyx-composer"
-      onSubmit={submitMessage}
-    >
+    <form className="nyx-composer" onSubmit={submitMessage}>
       <textarea
         value={message}
         onChange={(event) => setMessage(event.target.value)}
@@ -241,13 +248,40 @@ function Composer({ onSend, disabled = false }) {
         <Send size={19} />
       </button>
     </form>
-  );}
+  );
+}
+
+function BottomNavigation({ page, onNavigate }) {
+  return (
+    <nav className="nyx-bottom-nav">
+      {NAVIGATION.map((item) => {
+        const Icon = item.icon;
+
+        return (
+          <button
+            key={item.page}
+            type="button"
+            className={`nyx-nav-item ${
+              page === item.page ? "active" : ""
+            }`}
+            onClick={() => onNavigate(item.page)}
+          >
+            <Icon size={19} />
+            <span>{item.name}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 export default function App() {
   const [conversations, setConversations] = useState(loadConversations);
   const [activeConversation, setActiveConversation] = useState(null);
   const [activeStudio, setActiveStudio] = useState(null);
   const [page, setPage] = useState("home");
+  const [researchReturnPage, setResearchReturnPage] = useState("home");
+
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState("signin");
   const [email, setEmail] = useState("");
@@ -257,23 +291,30 @@ export default function App() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(conversations)
+    );
   }, [conversations]);
 
   useEffect(() => {
     let subscription;
 
     const loadUser = async () => {
-      const { data } = await supabase.auth.getSession();
-      setUser(data.session?.user || null);
+      try {
+        const { data } = await supabase.auth.getSession();
+        setUser(data.session?.user || null);
 
-      const result = supabase.auth.onAuthStateChange(
-        (_event, session) => {
-          setUser(session?.user || null);
-        }
-      );
+        const result = supabase.auth.onAuthStateChange(
+          (_event, session) => {
+            setUser(session?.user || null);
+          }
+        );
 
-      subscription = result.data.subscription;
+        subscription = result.data.subscription;
+      } catch (error) {
+        console.error("NYX authentication error:", error);
+      }
     };
 
     loadUser();
@@ -284,6 +325,8 @@ export default function App() {
   }, []);
 
   const startConversation = (studio) => {
+    if (!studio) return;
+
     const conversation = {
       id: makeId(),
       studioId: studio.id,
@@ -304,14 +347,37 @@ export default function App() {
   };
 
   const openConversation = (conversation) => {
-    const studio = findStudio(conversation.studioId);
+    const studio =
+      findStudio(conversation.studioId) || STUDIOS[0];
 
     setActiveStudio(studio);
     setActiveConversation(conversation.id);
     setPage("chat");
   };
 
+  const openResearch = () => {
+    if (page === "chat" && activeStudio) {
+      setResearchReturnPage("chat");
+    } else {
+      setResearchReturnPage("home");
+      setActiveStudio(findStudio("research"));
+    }
+
+    setPage("research");
+  };
+
+  const navigate = (nextPage) => {
+    if (nextPage === "research") {
+      openResearch();
+      return;
+    }
+
+    setPage(nextPage);
+  };
+
   const sendMessage = (message) => {
+    if (!activeStudio) return;
+
     let conversationId = activeConversation;
 
     if (!conversationId) {
@@ -339,7 +405,8 @@ export default function App() {
           return conversation;
         }
 
-        const firstMessage = conversation.messages.length === 0;
+        const firstMessage =
+          conversation.messages.length === 0;
 
         return {
           ...conversation,
@@ -362,9 +429,11 @@ export default function App() {
   };
 
   const attachReferences = (references) => {
+    if (!activeStudio) return;
+
     let conversationId = activeConversation;
 
-    if (!conversationId && activeStudio) {
+    if (!conversationId) {
       const newConversation = {
         id: makeId(),
         studioId: activeStudio.id,
@@ -382,8 +451,6 @@ export default function App() {
         ...previous
       ]);
     }
-
-    if (!conversationId) return;
 
     setConversations((previous) =>
       previous.map((conversation) =>
@@ -439,26 +506,35 @@ export default function App() {
           "Account created. Check your email if confirmation is required."
         );
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+        const { error } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
 
         if (error) throw error;
 
         setAuthMessage("Welcome back.");
       }
     } catch (error) {
-      setAuthMessage(error.message || "Something went wrong.");
+      setAuthMessage(
+        error.message || "Something went wrong."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setPage("home");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      setUser(null);
+      setPage("home");
+    } catch (error) {
+      setAuthMessage(error.message || "Could not sign out.");
+    }
   };
 
   const currentConversation = conversations.find(
@@ -472,7 +548,8 @@ export default function App() {
   );
 
   const studioConversations = conversations.filter(
-    (conversation) => conversation.studioId === activeStudio?.id
+    (conversation) =>
+      conversation.studioId === activeStudio?.id
   );
 
   if (page === "auth") {
@@ -481,14 +558,19 @@ export default function App() {
         <section className="nyx-auth-page">
           <button
             className="nyx-back-button"
-            onClick={() => setPage("home")}
+            onClick={() => setPage("account")}
           >
             <ArrowLeft size={18} /> Back
           </button>
 
           <div className="nyx-auth-card">
             <Sparkles size={35} />
-            <h1>{authMode === "signup" ? "Join NYX" : "Welcome back"}</h1>
+            <h1>
+              {authMode === "signup"
+                ? "Join NYX"
+                : "Welcome back"}
+            </h1>
+
             <p>Your creative universe starts here.</p>
 
             <form onSubmit={handleAuth}>
@@ -496,7 +578,9 @@ export default function App() {
                 type="email"
                 placeholder="Email address"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 required
               />
 
@@ -504,7 +588,9 @@ export default function App() {
                 type="password"
                 placeholder="Password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
                 required
                 minLength={6}
               />
@@ -524,7 +610,9 @@ export default function App() {
               className="nyx-text-button"
               onClick={() => {
                 setAuthMode(
-                  authMode === "signup" ? "signin" : "signup"
+                  authMode === "signup"
+                    ? "signin"
+                    : "signup"
                 );
                 setAuthMessage("");
               }}
@@ -535,18 +623,6 @@ export default function App() {
             </button>
           </div>
         </section>
-      </main>
-    );
-  }
-
-  if (page === "research" && activeStudio) {
-    return (
-      <main className="nyx-app">
-        <ResearchHub
-          studio={activeStudio}
-          onBack={() => setPage("chat")}
-          onAttach={attachReferences}
-        />
       </main>
     );
   }
@@ -570,7 +646,7 @@ export default function App() {
           </div>
 
           <button
-            onClick={() => setPage("research")}
+            onClick={openResearch}
             className="nyx-icon-button"
             title="Research and discovery"
           >
@@ -599,14 +675,18 @@ export default function App() {
                 key={conversation.id}
               >
                 <button
-                  onClick={() => openConversation(conversation)}
+                  onClick={() =>
+                    openConversation(conversation)
+                  }
                 >
                   <MessageCircle size={15} />
                   <span>{conversation.title}</span>
                 </button>
 
                 <button
-                  onClick={() => deleteConversation(conversation.id)}
+                  onClick={() =>
+                    deleteConversation(conversation.id)
+                  }
                   title="Delete conversation"
                 >
                   <Trash2 size={14} />
@@ -624,17 +704,21 @@ export default function App() {
             <div className="nyx-messages">
               {currentConversation?.messages?.length ? (
                 currentConversation.messages.map((item) => (
-                  <MessageBubble item={item} key={item.id} />
+                  <MessageBubble
+                    item={item}
+                    key={item.id}
+                  />
                 ))
               ) : (
                 <div className="nyx-empty-chat">
                   <Sparkles size={35} />
                   <h3>What are we creating today?</h3>
                   <p>
-                    Tell NYX your idea. You can also explore research
-                    and references for this studio.
+                    Tell NYX your idea. You can also explore
+                    research and references for this studio.
                   </p>
-                  <button onClick={() => setPage("research")}>
+
+                  <button onClick={openResearch}>
                     <Search size={16} /> Explore research
                   </button>
                 </div>
@@ -653,6 +737,41 @@ export default function App() {
     );
   }
 
+  if (page === "research") {
+    return (
+      <main className="nyx-app">
+        <header className="nyx-topbar">
+          <button
+            className="nyx-brand"
+            onClick={() => setPage("home")}
+          >
+            <Sparkles size={23} />
+            <span>NYX</span>
+          </button>
+
+          <button
+            className="nyx-icon-button"
+            onClick={() => setPage("home")}
+            aria-label="Back home"
+          >
+            <ArrowLeft size={19} />
+          </button>
+        </header>
+
+        <ResearchHub
+          studio={activeStudio || findStudio("research")}
+          onBack={() => setPage(researchReturnPage)}
+          onAttach={attachReferences}
+        />
+
+        <BottomNavigation
+          page="research"
+          onNavigate={navigate}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="nyx-app">
       <header className="nyx-topbar">
@@ -660,52 +779,97 @@ export default function App() {
           className="nyx-brand"
           onClick={() => setPage("home")}
         >
-          <Sparkles size={24} />
+          <Sparkles size={23} />
           <span>NYX</span>
         </button>
 
-        <nav className="nyx-navigation">
-          <button onClick={() => setPage("home")}>
-            <Home size={17} /> Home
-          </button>
-
-          <button onClick={() => setPage("projects")}>
-            <FolderOpen size={17} /> Projects
-          </button>
-
-          <button onClick={() => setPage("settings")}>
-            <Settings size={17} /> Settings
-          </button>
-        </nav>
-
         <button
           className="nyx-account-button"
-          onClick={() => setPage(user ? "settings" : "auth")}
+          onClick={() => setPage("account")}
         >
           <UserRound size={18} />
           {user ? "Account" : "Sign in"}
         </button>
       </header>
 
-      {page === "projects" ? (
+      {page === "home" ? (
+        <Home
+          onNavigate={navigate}
+          onNewChat={() => startConversation(STUDIOS[0])}
+        />
+      ) : page === "studio" ? (
         <section className="nyx-page-content">
-          <button onClick={() => setPage("home")}>
-            <ArrowLeft size={17} /> Back
-          </button>
+          <h1>Creative Studios</h1>
+          <p>Choose a studio to bring your ideas to life.</p>
 
-          <h1>Your projects</h1>
-          <p>Continue working on a previous conversation.</p>
+          <input
+            className="nyx-search-input"
+            type="search"
+            placeholder="Find a studio..."
+            value={search}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+          />
+
+          <div className="nyx-studio-grid">
+            {filteredStudios.map((studio) => (
+              <StudioCard
+                key={studio.id}
+                studio={studio}
+                onClick={() => startConversation(studio)}
+              />
+            ))}
+          </div>
+        </section>
+      ) : page === "reels" ? (
+        <section className="nyx-page-content">
+          <div className="nyx-page-title">
+            <Video size={25} />
+            <h1>NYX Reels</h1>
+          </div>
+
+          <p>
+            Discover creative videos, new ideas and inspiration.
+          </p>
+
+          <div className="nyx-empty-chat">
+            <Film size={38} />
+            <h3>Your creative feed starts here</h3>
+            <p>
+              The scrollable Reels feed and video creation
+              features will be built in the next stage.
+            </p>
+          </div>
+        </section>
+      ) : page === "projects" ? (
+        <section className="nyx-page-content">
+          <h1>Your Projects</h1>
+          <p>Continue working on your previous creations.</p>
 
           {conversations.length === 0 ? (
-            <p>No projects yet. Start by exploring a studio.</p>
+            <div className="nyx-empty-chat">
+              <FolderOpen size={35} />
+              <h3>No projects yet</h3>
+              <p>Start a conversation in one of your studios.</p>
+            </div>
           ) : (
             conversations.map((conversation) => {
-              const studio = findStudio(conversation.studioId);
+              const studio =
+                findStudio(conversation.studioId);
 
               return (
-                <div className="nyx-project-item" key={conversation.id}>
-                  <button onClick={() => openConversation(conversation)}>
+                <div
+                  className="nyx-project-item"
+                  key={conversation.id}
+                >
+                  <button
+                    onClick={() =>
+                      openConversation(conversation)
+                    }
+                  >
                     <FolderOpen size={19} />
+
                     <span>
                       <strong>{conversation.title}</strong>
                       <small>
@@ -716,7 +880,9 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={() => deleteConversation(conversation.id)}
+                    onClick={() =>
+                      deleteConversation(conversation.id)
+                    }
                     title="Delete project"
                   >
                     <Trash2 size={16} />
@@ -726,45 +892,130 @@ export default function App() {
             })
           )}
         </section>
-      ) : page === "settings" ? (
+      ) : page === "account" ? (
         <section className="nyx-page-content">
-          <h1>Settings</h1>
-          <p>
-            {user
-              ? `Signed in as ${user.email}`
-              : "You are currently exploring NYX without an account."}
-          </p>
+          <h1>Your Account</h1>
+          <p>Manage your NYX account and preferences.</p>
 
-          {user ? (
-            <button onClick={handleSignOut}>
-              <LogOut size={17} /> Sign out
-            </button>
-          ) : (
-            <button onClick={() => setPage("auth")}>
-              Sign in or create an account
+          <div className="nyx-account-card">
+            <div className="nyx-account-avatar">
+              <UserRound size={28} />
+            </div>
+
+            <div>
+              <strong>
+                {user ? user.email : "Guest account"}
+              </strong>
+              <p>
+                {user
+                  ? "You are signed in to NYX."
+                  : "Sign in to access your account."}
+              </p>
+            </div>
+          </div>
+
+          {!user && (
+            <button
+              className="nyx-action-button"
+              onClick={() => {
+                setAuthMode("signin");
+                setAuthMessage("");
+                setPage("auth");
+              }}
+            >
+              Sign in
             </button>
           )}
 
-          <p className="nyx-service-note">
-            Conversation storage is currently local to this device.
-            Account-based cloud project syncing is not connected yet.
-          </p>
+          {!user && (
+            <button
+              className="nyx-action-button"
+              onClick={() => {
+                setAuthMode("signup");
+                setAuthMessage("");
+                setPage("auth");
+              }}
+            >
+              Create an account
+            </button>
+          )}
+
+          <button
+            className="nyx-action-button"
+            onClick={() => setPage("settings")}
+          >
+            <Settings size={18} /> Settings
+          </button>
+
+          {user && (
+            <button
+              className="nyx-action-button"
+              onClick={handleSignOut}
+            >
+              <LogOut size={18} /> Sign out
+            </button>
+          )}
+        </section>
+      ) : page === "settings" ? (
+        <section className="nyx-page-content">
+          <button
+            className="nyx-back-button"
+            onClick={() => setPage("account")}
+          >
+            <ArrowLeft size={18} /> Account
+          </button>
+
+          <h1>Settings</h1>
+          <p>Manage your NYX preferences.</p>
+
+          <div className="nyx-settings-item">
+            <Sparkles size={19} />
+            <span>
+              <strong>Appearance</strong>
+              <small>NYX uses its dark creative theme.</small>
+            </span>
+          </div>
+
+          <div className="nyx-settings-item">
+            <FolderOpen size={19} />
+            <span>
+              <strong>Conversation storage</strong>
+              <small>
+                Conversations are currently saved on this device.
+              </small>
+            </span>
+          </div>
+
+          <div className="nyx-settings-item">
+            <Compass size={19} />
+            <span>
+              <strong>Research and discovery</strong>
+              <small>
+                Research tools are available through the Research section.
+              </small>
+            </span>
+          </div>
+
+          {user && (
+            <button
+              className="nyx-action-button"
+              onClick={handleSignOut}
+            >
+              <LogOut size={18} /> Sign out
+            </button>
+          )}
         </section>
       ) : (
         <Home
-          onNavigate={(nextPage) => {
-            if (nextPage === "studio") {
-              startConversation(STUDIOS[0]);
-            } else if (nextPage === "research") {
-              setActiveStudio(findStudio("research"));
-              setPage("research");
-            } else {
-              setPage(nextPage);
-            }
-          }}
+          onNavigate={navigate}
           onNewChat={() => startConversation(STUDIOS[0])}
         />
       )}
+
+      <BottomNavigation
+        page={page}
+        onNavigate={navigate}
+      />
     </main>
   );
 }
