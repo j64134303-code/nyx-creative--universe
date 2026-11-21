@@ -28,75 +28,97 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // 1. Check authentication
+    // 1. Verify the signed-in user
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!token) {
       return jsonResponse(
         { error: "Please sign in to use NYX AI." },
-        401,
+        401
       );
     }
 
     // 2. Read Supabase configuration
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+
     const publishableKey =
-      Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ||
+      Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !publishableKey) {
-      console.error("Missing Supabase URL or Publishable Key.");
+      console.error("Missing Supabase configuration.");
 
       return jsonResponse(
         { error: "NYX authentication configuration is missing." },
-        500,
+        500
       );
     }
 
-    // 3. Verify the user's session
-    const supabase = createClient(supabaseUrl, publishableKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    const supabase = createClient(
+      supabaseUrl,
+      publishableKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      }
+    );
 
     const { data, error } =
       await supabase.auth.getUser(token);
 
     if (error || !data.user) {
-      console.error("Authentication failed:", error?.message);
+      console.error(
+        "Authentication failed:",
+        error?.message
+      );
 
       return jsonResponse(
         { error: "Your session is invalid. Please sign in again." },
-        401,
+        401
       );
     }
 
-    // 4. Read creator message
+    // 3. Read the request from App.jsx
     let body: any;
 
     try {
       body = await req.json();
     } catch {
-      return jsonResponse({ error: "Invalid request body." }, 400);
+      return jsonResponse(
+        { error: "Invalid request body." },
+        400
+      );
     }
 
-    const message = String(body.message || "").trim();
-    const studio = String(
-      body.studio || "Creative Studio",
+    const message =
+      typeof body.message === "string"
+        ? body.message.trim()
+        : "";
+
+    // Accept both names for compatibility
+    const studioName = String(
+      body.studioName || body.studio || "Creative Studio"
     ).slice(0, 100);
 
     if (!message) {
-      return jsonResponse({ error: "Please enter a message." }, 400);
+      return jsonResponse(
+        { error: "Please enter a message." },
+        400
+      );
     }
 
     if (message.length > 12000) {
-      return jsonResponse({ error: "Message is too long." }, 400);
+      return jsonResponse(
+        { error: "Message is too long." },
+        400
+      );
     }
 
-    // 5. Check Gemini configuration
+    // 4. Check Gemini secret
     const apiKey = Deno.env.get("GEMINI_API_KEY");
 
     if (!apiKey) {
@@ -104,11 +126,11 @@ Deno.serve(async (req: Request) => {
 
       return jsonResponse(
         { error: "NYX AI is not configured yet." },
-        500,
+        500
       );
     }
 
-    // 6. Preserve recent conversation history
+    // 5. Preserve recent conversation history
     const history = Array.isArray(body.history)
       ? body.history.slice(-12)
       : [];
@@ -125,11 +147,11 @@ Deno.serve(async (req: Request) => {
       )
       .join("\n\n");
 
-    // 7. Build NYX intelligence prompt
+    // 6. Build NYX intelligence prompt
     const prompt = `
 You are NYX, an intelligent creative partner.
 
-Current studio: ${studio}
+Current studio: ${studioName}
 
 Your responsibilities:
 - Understand the creator's intention before making assumptions.
@@ -152,9 +174,9 @@ ${message}
 Respond naturally and helpfully.
 `;
 
-    // 8. Connect to Gemini
+    // 7. Connect to Gemini 3.8 Flash
     const aiResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/interactions",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
       {
         method: "POST",
         headers: {
@@ -162,10 +184,14 @@ Respond naturally and helpfully.
           "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          model: "gemini-3.8-flash",
-          input: prompt,
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
         }),
-      },
+      }
     );
 
     const rawResponse = await aiResponse.text();
@@ -177,66 +203,67 @@ Respond naturally and helpfully.
     } catch {
       console.error(
         "Gemini returned invalid JSON:",
-        rawResponse.slice(0, 1500),
+        rawResponse.slice(0, 500)
       );
 
       return jsonResponse(
         { error: "NYX received an invalid AI response." },
-        502,
+        502
       );
     }
 
-    // 9. Handle Gemini errors
+    // 8. Handle Gemini errors
     if (!aiResponse.ok) {
+      const providerMessage =
+        result?.error?.message || "Unknown Gemini error.";
+
       console.error("Gemini API error:", {
         status: aiResponse.status,
-        response: rawResponse.slice(0, 1500),
+        message: providerMessage.slice(0, 500),
       });
 
       return jsonResponse(
         {
-          error: "NYX could not generate a response. Please try again.",
+          error: `Gemini request failed (${aiResponse.status}): ${providerMessage.slice(0, 300)}`,
         },
-        aiResponse.status === 429 ? 429 : 502,
+        502
       );
     }
 
-    // 10. Extract AI response
-    const reply =
-      result.steps
-        ?.filter((step: any) => step.type === "model_output")
-        .flatMap((step: any) => step.content || [])
-        .filter((part: any) => part.type === "text")
+    // 9. Extract the generated response
+    const response =
+      result.candidates?.[0]?.content?.parts
+        ?.filter((part: any) =>
+          typeof part.text === "string" && !part.thought
+        )
         .map((part: any) => part.text)
         .join("\n")
-        .trim() ||
-      result.output_text ||
-      "";
+        .trim() || "";
 
-    if (!reply) {
+    if (!response) {
       console.error(
         "Gemini returned no text:",
-        JSON.stringify(result).slice(0, 1500),
+        JSON.stringify(result).slice(0, 500)
       );
 
       return jsonResponse(
-        { error: "NYX received an empty response. Please try again." },
-        502,
+        { error: "NYX received an empty response." },
+        502
       );
     }
 
-    // 11. Return NYX response
-    return jsonResponse({ reply });
+    // 10. Return exactly what App.jsx expects
+    return jsonResponse({ response });
 
   } catch (error) {
     console.error(
       "NYX function error:",
-      error instanceof Error ? error.message : String(error),
+      error instanceof Error ? error.message : String(error)
     );
 
     return jsonResponse(
       { error: "Something went wrong. Please try again." },
-      500,
+      500
     );
   }
 });
