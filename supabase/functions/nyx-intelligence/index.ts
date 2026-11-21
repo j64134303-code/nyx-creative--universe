@@ -28,9 +28,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Verify that the caller is signed in.
+    // 1. Check authentication
     const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!token) {
       return jsonResponse(
@@ -39,54 +39,76 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // 2. Read Supabase configuration
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const publishableKey =
+      Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !publishableKey) {
+      console.error("Missing Supabase URL or Publishable Key.");
+
       return jsonResponse(
-        { error: "Supabase configuration is missing." },
+        { error: "NYX authentication configuration is missing." },
         500,
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // 3. Verify the user's session
+    const supabase = createClient(supabaseUrl, publishableKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
 
-    const { data: { user }, error: authError } =
+    const { data, error } =
       await supabase.auth.getUser(token);
 
-    if (authError || !user) {
+    if (error || !data.user) {
+      console.error("Authentication failed:", error?.message);
+
       return jsonResponse(
         { error: "Your session is invalid. Please sign in again." },
         401,
       );
     }
 
-    // Read the user's message and studio context.
-    const body = await req.json();
+    // 4. Read creator message
+    let body: any;
+
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Invalid request body." }, 400);
+    }
+
     const message = String(body.message || "").trim();
-    const studio = String(body.studio || "Creative Studio").slice(0, 100);
+    const studio = String(
+      body.studio || "Creative Studio",
+    ).slice(0, 100);
 
     if (!message) {
       return jsonResponse({ error: "Please enter a message." }, 400);
     }
 
     if (message.length > 12000) {
-      return jsonResponse(
-        { error: "Your message is too long." },
-        400,
-      );
+      return jsonResponse({ error: "Message is too long." }, 400);
     }
 
+    // 5. Check Gemini configuration
     const apiKey = Deno.env.get("GEMINI_API_KEY");
 
     if (!apiKey) {
+      console.error("GEMINI_API_KEY is missing.");
+
       return jsonResponse(
         { error: "NYX AI is not configured yet." },
         500,
       );
     }
 
-    // Keep recent conversation context.
+    // 6. Preserve recent conversation history
     const history = Array.isArray(body.history)
       ? body.history.slice(-12)
       : [];
@@ -97,39 +119,40 @@ Deno.serve(async (req: Request) => {
         typeof item.content === "string"
       )
       .map((item: any) =>
-        `${item.role === "user" ? "User" : "NYX"}: ${
+        `${item.role === "user" ? "Creator" : "NYX"}: ${
           item.content.slice(0, 4000)
         }`
       )
       .join("\n\n");
 
+    // 7. Build NYX intelligence prompt
     const prompt = `
 You are NYX, an intelligent creative partner.
 
 Current studio: ${studio}
 
-Your role:
-- Understand what the creator wants before making assumptions.
+Your responsibilities:
+- Understand the creator's intention before making assumptions.
 - Help with creative work, planning, writing, editing and problem-solving.
-- Give useful, specific answers instead of generic advice.
+- Give specific, useful and thoughtful responses.
 - Ask only necessary follow-up questions.
-- Adapt your response to the current studio.
-- Be warm, natural, thoughtful and direct.
-- Never claim that you created, edited, researched or published something
-  unless that action was actually completed.
-- If asked for live research or current facts, be honest if live web
-  search has not been performed. Never invent sources or citations.
+- Adapt naturally to the current studio.
+- Be warm, intelligent, direct and emotionally aware.
+- Challenge weak ideas constructively.
+- Never pretend to have completed an action you have not performed.
+- Never invent research, facts, sources or citations.
+- Maintain continuity with the conversation.
 
 Previous conversation:
 ${conversation || "This is the beginning of the conversation."}
 
-Latest message from the creator:
+Latest message:
 ${message}
 
 Respond naturally and helpfully.
 `;
 
-    // Send the request to Gemini.
+    // 8. Connect to Gemini
     const aiResponse = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/interactions",
       {
@@ -145,17 +168,40 @@ Respond naturally and helpfully.
       },
     );
 
-    const result = await aiResponse.json();
+    const rawResponse = await aiResponse.text();
 
-    if (!aiResponse.ok) {
-      console.error("Gemini error:", result);
+    let result: any;
+
+    try {
+      result = JSON.parse(rawResponse);
+    } catch {
+      console.error(
+        "Gemini returned invalid JSON:",
+        rawResponse.slice(0, 1500),
+      );
 
       return jsonResponse(
-        { error: "NYX could not generate a response. Please try again." },
+        { error: "NYX received an invalid AI response." },
+        502,
+      );
+    }
+
+    // 9. Handle Gemini errors
+    if (!aiResponse.ok) {
+      console.error("Gemini API error:", {
+        status: aiResponse.status,
+        response: rawResponse.slice(0, 1500),
+      });
+
+      return jsonResponse(
+        {
+          error: "NYX could not generate a response. Please try again.",
+        },
         aiResponse.status === 429 ? 429 : 502,
       );
     }
 
+    // 10. Extract AI response
     const reply =
       result.steps
         ?.filter((step: any) => step.type === "model_output")
@@ -168,15 +214,25 @@ Respond naturally and helpfully.
       "";
 
     if (!reply) {
+      console.error(
+        "Gemini returned no text:",
+        JSON.stringify(result).slice(0, 1500),
+      );
+
       return jsonResponse(
         { error: "NYX received an empty response. Please try again." },
         502,
       );
     }
 
+    // 11. Return NYX response
     return jsonResponse({ reply });
+
   } catch (error) {
-    console.error("NYX function error:", error);
+    console.error(
+      "NYX function error:",
+      error instanceof Error ? error.message : String(error),
+    );
 
     return jsonResponse(
       { error: "Something went wrong. Please try again." },
