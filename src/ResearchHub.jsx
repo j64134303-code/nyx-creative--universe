@@ -1,143 +1,21 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Search,
   Plus,
+  Search,
+  Send,
   Trash2,
-  ExternalLink,
-  BookOpen,
-  TrendingUp,
-  Globe,
-  Lightbulb,
+  Bookmark,
   FolderOpen,
   Sparkles,
-  Compass,
-  Music,
-  Film,
-  Video,
-  Mic,
-  Palette,
-  Gamepad2,
-  Building2,
-  ShieldCheck,
-  Check,
-  Link as LinkIcon
+  ExternalLink,
+  X
 } from "lucide-react";
 
-const STORAGE_KEY = "nyx-shared-research-library-v1";
+const STORAGE_KEY = "nyx-research-conversations-v2";
 
-const CATEGORIES = [
-  "All research",
-  "History & Culture",
-  "Science & Technology",
-  "Music & Beats",
-  "Sounds & Audio",
-  "Movies & Film",
-  "Video & Editing",
-  "Animation & Visual Effects",
-  "Books & Literature",
-  "Characters & Storytelling",
-  "Games & Interactive Media",
-  "Fashion & Design",
-  "Photography & Art",
-  "Marketing & Social Media",
-  "Trends & Audience Interests",
-  "Companies & Organisations",
-  "Business & Industries",
-  "Products & Brands",
-  "Places & Events",
-  "Education & Knowledge",
-  "Other"
-];
-
-const RIGHTS = [
-  "My own work",
-  "Public domain",
-  "Licensed material",
-  "Creator-authorised",
-  "Public viewing only",
-  "Rights unclear"
-];
-
-const STUDIO_CATEGORIES = {
-  "Film & Video": [
-    "Movies & Film",
-    "Video & Editing",
-    "Photography & Art",
-    "Characters & Storytelling"
-  ],
-  "Edit Studio": [
-    "Video & Editing",
-    "Movies & Film",
-    "Trends & Audience Interests",
-    "Photography & Art"
-  ],
-  "Beat Studio": [
-    "Music & Beats",
-    "Sounds & Audio",
-    "Trends & Audience Interests"
-  ],
-  "Music": [
-    "Music & Beats",
-    "Sounds & Audio",
-    "History & Culture"
-  ],
-  "Books & Writing": [
-    "Books & Literature",
-    "History & Culture",
-    "Characters & Storytelling"
-  ],
-  "Storytelling & Voice": [
-    "Characters & Storytelling",
-    "Books & Literature",
-    "Sounds & Audio"
-  ],
-  "Game Creation": [
-    "Games & Interactive Media",
-    "Characters & Storytelling",
-    "Science & Technology"
-  ],
-  "Marketing": [
-    "Marketing & Social Media",
-    "Trends & Audience Interests",
-    "Business & Industries"
-  ],
-  "Character Studio": [
-    "Characters & Storytelling",
-    "Fashion & Design",
-    "History & Culture"
-  ],
-  "Audio Production": [
-    "Sounds & Audio",
-    "Music & Beats",
-    "Trends & Audience Interests"
-  ],
-  "Animation": [
-    "Animation & Visual Effects",
-    "Photography & Art",
-    "Characters & Storytelling"
-  ],
-  "Comedy & Entertainment": [
-    "Trends & Audience Interests",
-    "Video & Editing",
-    "Characters & Storytelling"
-  ],
-  "Audiobook Production": [
-    "Books & Literature",
-    "Sounds & Audio",
-    "Characters & Storytelling"
-  ],
-  "Research & Discovery": [
-    "All research",
-    "History & Culture",
-    "Science & Technology"
-  ]
-};
-
-function loadLibrary() {
-  if (typeof window === "undefined") return [];
-
+function loadConversations() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
@@ -147,620 +25,588 @@ function loadLibrary() {
   }
 }
 
+function makeId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function getStudioName(studio) {
-  if (!studio) return "All Studios";
+  if (!studio) return "Research & Discovery";
   if (typeof studio === "string") return studio;
-  return studio.name || studio.title || "All Studios";
+  return studio.name || studio.title || "Research & Discovery";
 }
 
 export default function ResearchHub({ studio, onBack, onAttach }) {
   const studioName = getStudioName(studio);
 
-  const suggestedCategories =
-    STUDIO_CATEGORIES[studioName] || [
-      "All research",
-      "Trends & Audience Interests",
-      "History & Culture"
-    ];
-
-  const [library, setLibrary] = useState(loadLibrary);
-  const [brief, setBrief] = useState("");
-  const [category, setCategory] = useState("All research");
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
-  const [notes, setNotes] = useState("");
-  const [rights, setRights] = useState("Public viewing only");
-  const [filter, setFilter] = useState("All");
-  const [selected, setSelected] = useState([]);
+  const [conversations, setConversations] = useState(loadConversations);
+  const [activeId, setActiveId] = useState(null);
   const [message, setMessage] = useState("");
+  const [showSaved, setShowSaved] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  const bottomRef = useRef(null);
+
+  const activeConversation =
+    conversations.find(item => item.id === activeId) || null;
+
+  const savedConversations = conversations.filter(
+    item => item.saved
+  );
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(conversations)
+      );
     } catch {
-      setMessage("Could not save. Your device storage may be full.");
+      setNotice("Your device could not save this conversation.");
     }
-  }, [library]);
+  }, [conversations]);
 
-  const visibleItems = useMemo(() => {
-    return library.filter(item => {
-      const matchesStudio =
-        filter === "All" ||
-        item.studio === filter ||
-        item.studio === "All Studios";
-
-      const matchesCategory =
-        category === "All research" ||
-        item.category === category;
-
-      return matchesStudio && matchesCategory;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end"
     });
-  }, [library, filter, category]);
+  }, [activeConversation?.messages?.length]);
 
-  function searchWeb(mode) {
-    const query = brief.trim();
-
-    if (!query) {
-      setMessage("Write what you want to research first.");
-      return;
-    }
-
-    let searchQuery = query;
-
-    if (mode === "trends") {
-      searchQuery =
-        `latest current trends ${query} audience interests`;
-    }
-
-    if (mode === "techniques") {
-      searchQuery =
-        `${query} creative techniques examples analysis`;
-    }
-
-    if (mode === "history") {
-      searchQuery =
-        `${query} history background facts reliable sources`;
-    }
-
-    const destination =
-      "https://www.google.com/search?q=" +
-      encodeURIComponent(searchQuery);
-
-    window.open(destination, "_blank", "noopener,noreferrer");
+  function startNewChat() {
+    setActiveId(null);
+    setMessage("");
+    setShowSaved(false);
+    setNotice("");
   }
 
-  function saveReference() {
-    if (!title.trim() || !url.trim()) {
-      setMessage("Please add a title and a link.");
-      return;
-    }
+  function sendMessage() {
+    const question = message.trim();
+    if (!question) return;
 
-    let validUrl;
-
-    try {
-      validUrl = new URL(url.trim());
-
-      if (
-        validUrl.protocol !== "https:" &&
-        validUrl.protocol !== "http:"
-      ) {
-        throw new Error("Invalid link");
-      }
-    } catch {
-      setMessage("Please enter a valid website link.");
-      return;
-    }
-
-    const reference = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      title: title.trim(),
-      url: validUrl.href,
-      notes: notes.trim(),
-      category,
-      rights,
+    const existing = activeConversation;
+    const conversation = existing || {
+      id: makeId(),
+      title: question.length > 48
+        ? question.slice(0, 48) + "..."
+        : question,
       studio: studioName,
+      saved: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: []
+    };
+
+    const searchUrl =
+      "https://www.google.com/search?q=" +
+      encodeURIComponent(question);
+
+    const userMessage = {
+      id: makeId(),
+      role: "user",
+      content: question,
       createdAt: new Date().toISOString()
     };
 
-    setLibrary(previous => [reference, ...previous]);
-    setSelected(previous => [...previous, reference.id]);
+    const assistantMessage = {
+      id: makeId(),
+      role: "assistant",
+      content:
+        "Your research question is ready. The live NYX research engine is not connected yet, so I cannot produce verified in-app findings at this stage. You can open the search below to explore sources. Once the research engine is connected, NYX will be able to investigate, analyse and organise sourced findings here.",
+      searchUrl,
+      createdAt: new Date().toISOString()
+    };
 
-    setTitle("");
-    setUrl("");
-    setNotes("");
-    setMessage("Saved to your shared research library.");
+    const updated = {
+      ...conversation,
+      updatedAt: new Date().toISOString(),
+      messages: [
+        ...(conversation.messages || []),
+        userMessage,
+        assistantMessage
+      ]
+    };
+
+    setConversations(previous => [
+      updated,
+      ...previous.filter(item => item.id !== updated.id)
+    ]);
+
+    setActiveId(updated.id);
+    setMessage("");
+    setShowSaved(false);
+    setNotice("");
   }
 
-  function removeReference(id) {
-    setLibrary(previous =>
+  function toggleSaved() {
+    if (!activeConversation) return;
+
+    setConversations(previous =>
+      previous.map(item =>
+        item.id === activeId
+          ? { ...item, saved: !item.saved }
+          : item
+      )
+    );
+
+    setNotice(
+      activeConversation.saved
+        ? "Removed from saved research."
+        : "Research conversation saved."
+    );
+  }
+
+  function openConversation(id) {
+    setActiveId(id);
+    setShowSaved(false);
+    setNotice("");
+  }
+
+  function deleteConversation(id) {
+    setConversations(previous =>
       previous.filter(item => item.id !== id)
     );
 
-    setSelected(previous =>
-      previous.filter(item => item !== id)
-    );
+    if (activeId === id) {
+      setActiveId(null);
+    }
+
+    setNotice("Conversation deleted.");
   }
 
-  function toggleReference(id) {
-    setSelected(previous =>
-      previous.includes(id)
-        ? previous.filter(item => item !== id)
-        : [...previous, id]
-    );
-  }
+  function attachResearch() {
+    if (!activeConversation) return;
 
-  function attachReferences() {
-    const chosen = library.filter(item =>
-      selected.includes(item.id)
-    );
+    const references = (activeConversation.messages || [])
+      .filter(item => item.role === "assistant" && item.searchUrl)
+      .map(item => ({
+        id: item.id,
+        title: activeConversation.title,
+        url: item.searchUrl,
+        notes: item.content,
+        category: "Research",
+        rights: "Public viewing only",
+        studio: studioName,
+        type: "research",
+        source: "NYX Research"
+      }));
 
-    if (!chosen.length) {
-      setMessage("Select some references first.");
+    if (!references.length) {
+      setNotice("There are no research references to attach yet.");
       return;
     }
 
     if (typeof onAttach === "function") {
-      onAttach(chosen);
-      setMessage("References sent to your studio project.");
+      onAttach(references);
+      setNotice("Research sent to your studio project.");
     } else {
-      setMessage("References remain saved in your library.");
+      setNotice("Your research is saved in this conversation.");
     }
   }
 
   const styles = {
     page: {
       minHeight: "100vh",
-      background: "#09070f",
-      color: "#f5efff",
-      padding: "20px",
+      background: "#08080d",
+      color: "#f5f1ff",
+      display: "flex",
+      flexDirection: "column",
+      padding: "14px",
       boxSizing: "border-box"
     },
-    panel: {
-      background: "#151020",
-      border: "1px solid #30213f",
-      borderRadius: "16px",
-      padding: "18px",
-      marginBottom: "16px"
+    header: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: "10px",
+      padding: "5px 0 15px",
+      borderBottom: "1px solid #24202d"
     },
-    muted: {
-      color: "#a99bb9",
-      fontSize: "13px",
-      lineHeight: 1.6
-    },
-    input: {
-      width: "100%",
-      boxSizing: "border-box",
-      background: "#0d0915",
-      border: "1px solid #49345e",
-      borderRadius: "10px",
-      color: "#ffffff",
-      padding: "12px",
-      marginTop: "7px",
-      marginBottom: "13px",
-      outline: "none"
-    },
-    button: {
-      background: "#8750c9",
-      color: "#ffffff",
-      border: "none",
-      borderRadius: "10px",
-      padding: "11px 14px",
-      cursor: "pointer",
+    iconButton: {
+      background: "#17141f",
+      color: "#e8ddff",
+      border: "1px solid #30283c",
+      borderRadius: "12px",
+      padding: "10px",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
-      gap: "7px",
-      fontWeight: 600
+      cursor: "pointer"
     },
-    secondary: {
-      background: "#241932",
-      color: "#e6d8f7",
-      border: "1px solid #49345e",
-      borderRadius: "10px",
-      padding: "10px 13px",
-      cursor: "pointer",
-      display: "inline-flex",
-      alignItems: "center",
-      gap: "7px"
+    panel: {
+      background: "#111018",
+      border: "1px solid #292332",
+      borderRadius: "16px",
+      padding: "15px",
+      marginTop: "15px"
+    },
+    muted: {
+      color: "#a9a2b5",
+      fontSize: "13px",
+      lineHeight: 1.6
+    },
+    message: {
+      maxWidth: "88%",
+      padding: "13px 15px",
+      borderRadius: "16px",
+      lineHeight: 1.6,
+      fontSize: "14px",
+      overflowWrap: "anywhere"
+    },
+    composer: {
+      display: "flex",
+      alignItems: "flex-end",
+      gap: "9px",
+      background: "#17141f",
+      border: "1px solid #393044",
+      borderRadius: "18px",
+      padding: "9px",
+      marginTop: "15px"
+    },
+    textarea: {
+      flex: 1,
+      minWidth: 0,
+      resize: "none",
+      border: "none",
+      outline: "none",
+      background: "transparent",
+      color: "#ffffff",
+      fontSize: "15px",
+      padding: "9px",
+      minHeight: "42px",
+      maxHeight: "130px",
+      fontFamily: "inherit"
     }
   };
 
   return (
     <main style={styles.page}>
-      <header style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: "12px",
-        marginBottom: "24px"
-      }}>
-        <button style={styles.secondary} onClick={onBack}>
-          <ArrowLeft size={17} /> Back
+      <header style={styles.header}>
+        <button
+          style={styles.iconButton}
+          onClick={onBack}
+          aria-label="Go back"
+        >
+          <ArrowLeft size={20} />
         </button>
 
-        <span style={styles.muted}>
-          <Globe size={15} /> Shared NYX research
-        </span>
-      </header>
-
-      <section style={{ marginBottom: "22px" }}>
-        <div style={{
-          color: "#bd8aff",
-          fontSize: "13px",
-          fontWeight: 700,
-          letterSpacing: "1px"
-        }}>
-          <Sparkles size={17} /> NYX INTELLIGENCE
-        </div>
-
-        <h1 style={{ fontSize: "28px", margin: "9px 0" }}>
-          Research & Discovery
-        </h1>
-
-        <p style={styles.muted}>
-          Discover knowledge. Explore creative references.
-          Understand industries and trends. Give every studio
-          better information before it creates.
-        </p>
-      </section>
-
-      <section style={styles.panel}>
-        <h3 style={{ marginTop: 0 }}>
-          <Compass size={18} /> Active studio
-        </h3>
-
-        <strong style={{ color: "#c99cff" }}>
-          {studioName}
-        </strong>
-
-        <p style={styles.muted}>
-          This studio can use the shared research library.
-          Research saved here can also be reused by other studios.
-        </p>
-
-        <div style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "8px"
-        }}>
-          {suggestedCategories.map(item => (
-            <button
-              key={item}
-              style={styles.secondary}
-              onClick={() => {
-                setCategory(item);
-                setBrief(
-                  item === "All research" ? "" : item
-                );
-              }}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section style={styles.panel}>
-        <h3 style={{ marginTop: 0 }}>
-          <Search size={18} /> Discover and investigate
-        </h3>
-
-        <p style={styles.muted}>
-          Research anything relevant to your project:
-          facts, history, science, music, editing, characters,
-          companies, products, techniques and more.
-        </p>
-
-        <textarea
-          style={{
-            ...styles.input,
-            minHeight: "105px",
-            resize: "vertical"
-          }}
-          value={brief}
-          onChange={event => setBrief(event.target.value)}
-          placeholder="What do you want NYX research to explore?"
-        />
-
-        <label style={styles.muted}>Research area</label>
-
-        <select
-          style={styles.input}
-          value={category}
-          onChange={event => setCategory(event.target.value)}
-        >
-          {CATEGORIES.map(item => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <div style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "9px"
-        }}>
-          <button
-            style={styles.button}
-            onClick={() => searchWeb("general")}
-          >
-            <Search size={16} /> Search web
-          </button>
-
-          <button
-            style={styles.secondary}
-            onClick={() => searchWeb("trends")}
-          >
-            <TrendingUp size={16} /> Explore trends
-          </button>
-
-          <button
-            style={styles.secondary}
-            onClick={() => searchWeb("techniques")}
-          >
-            <Lightbulb size={16} /> Study techniques
-          </button>
-
-          <button
-            style={styles.secondary}
-            onClick={() => searchWeb("history")}
-          >
-            <BookOpen size={16} /> Explore knowledge
-          </button>
-        </div>
-
-        <p style={styles.muted}>
-          These buttons open external search results. Automatic
-          in-app web research, source verification and AI analysis
-          are part of the next backend upgrade.
-        </p>
-      </section>
-
-      <section style={styles.panel}>
-        <h3 style={{ marginTop: 0 }}>
-          <Plus size={18} /> Save a reference
-        </h3>
-
-        <p style={styles.muted}>
-          Save useful articles, videos, music references,
-          research pages and other sources.
-        </p>
-
-        <label style={styles.muted}>Reference title</label>
-        <input
-          style={styles.input}
-          value={title}
-          onChange={event => setTitle(event.target.value)}
-          placeholder="Name this reference"
-        />
-
-        <label style={styles.muted}>Website link</label>
-        <input
-          style={styles.input}
-          value={url}
-          onChange={event => setUrl(event.target.value)}
-          placeholder="https://..."
-        />
-
-        <label style={styles.muted}>Category</label>
-        <select
-          style={styles.input}
-          value={category}
-          onChange={event => setCategory(event.target.value)}
-        >
-          {CATEGORIES.filter(item => item !== "All research").map(item => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <label style={styles.muted}>Rights and permissions</label>
-        <select
-          style={styles.input}
-          value={rights}
-          onChange={event => setRights(event.target.value)}
-        >
-          {RIGHTS.map(item => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <label style={styles.muted}>Research notes</label>
-        <textarea
-          style={{
-            ...styles.input,
-            minHeight: "85px",
-            resize: "vertical"
-          }}
-          value={notes}
-          onChange={event => setNotes(event.target.value)}
-          placeholder="What did you discover? What should the studio learn from this?"
-        />
-
-        <button style={styles.button} onClick={saveReference}>
-          <Plus size={16} /> Save reference
-        </button>
-      </section>
-
-      <section style={styles.panel}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "10px"
-        }}>
-          <h3 style={{ margin: 0 }}>
-            <FolderOpen size={18} /> Shared research library
-          </h3>
-
-          <span style={styles.muted}>
-            {library.length} references
-          </span>
-        </div>
-
-        <p style={styles.muted}>
-          Your saved references are available to the NYX studios
-          using this browser and device.
-        </p>
-
-        <label style={styles.muted}>Filter by studio</label>
-        <select
-          style={styles.input}
-          value={filter}
-          onChange={event => setFilter(event.target.value)}
-        >
-          <option value="All">All studios</option>
-          {Object.keys(STUDIO_CATEGORIES).map(name => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-          <option value="All Studios">General references</option>
-        </select>
-
-        <label style={styles.muted}>Filter by category</label>
-        <select
-          style={styles.input}
-          value={category}
-          onChange={event => setCategory(event.target.value)}
-        >
-          {CATEGORIES.map(item => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        {visibleItems.length === 0 ? (
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            textAlign: "center",
-            padding: "25px 10px",
-            color: "#a99bb9"
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            color: "#c79aff",
+            fontSize: "12px",
+            fontWeight: 700
           }}>
-            <BookOpen size={30} />
-            <p>No matching research references yet.</p>
+            <Sparkles size={14} />
+            NYX INTELLIGENCE
           </div>
-        ) : (
-          visibleItems.map(item => (
-            <article
-              key={item.id}
-              style={{
-                borderTop: "1px solid #30213f",
-                padding: "15px 0"
-              }}
-            >
-              <div style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "10px"
-              }}>
-                <input
-                  type="checkbox"
-                  checked={selected.includes(item.id)}
-                  onChange={() => toggleReference(item.id)}
-                  style={{ marginTop: "5px" }}
-                />
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{item.title}</strong>
-
-                  <p style={styles.muted}>
-                    {item.category} · Saved from {item.studio}
-                  </p>
-
-                  {item.notes && (
-                    <p style={styles.muted}>{item.notes}</p>
-                  )}
-
-                  <p style={styles.muted}>
-                    Rights: {item.rights}
-                  </p>
-
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      color: "#c99cff",
-                      fontSize: "13px",
-                      overflowWrap: "anywhere"
-                    }}
-                  >
-                    <ExternalLink
-                      size={13}
-                      style={{ verticalAlign: "middle" }}
-                    /> Open reference
-                  </a>
-                </div>
-
-                <button
-                  style={styles.secondary}
-                  onClick={() => removeReference(item.id)}
-                  title="Delete reference"
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            </article>
-          ))
-        )}
+          <div style={{
+            fontWeight: 700,
+            fontSize: "16px",
+            marginTop: "3px"
+          }}>
+            Research
+          </div>
+          <div style={styles.muted}>
+            {studioName}
+          </div>
+        </div>
 
         <button
-          style={{
-            ...styles.button,
-            marginTop: "15px"
-          }}
-          onClick={attachReferences}
+          style={styles.iconButton}
+          onClick={() => setShowSaved(!showSaved)}
+          aria-label="Saved conversations"
         >
-          <Check size={16} /> Attach selected to studio project
+          <Bookmark size={19} />
         </button>
-      </section>
 
-      <section style={{
-        ...styles.panel,
-        borderColor: "#49345e"
-      }}>
-        <h3 style={{ marginTop: 0 }}>
-          <ShieldCheck size={18} /> Respect creative rights
-        </h3>
-
-        <p style={styles.muted}>
-          Publicly viewing a creation does not automatically give
-          permission to download, copy, modify, reuse or publish it.
-          Research can study techniques and inspiration while
-          keeping original creators' rights protected.
-        </p>
-      </section>
-
-      {message && (
-        <div
-          role="status"
-          style={{
-            position: "sticky",
-            bottom: "12px",
-            background: "#241932",
-            border: "1px solid #8750c9",
-            color: "#ffffff",
-            padding: "13px",
-            borderRadius: "12px",
-            marginTop: "15px"
-          }}
+        <button
+          style={styles.iconButton}
+          onClick={startNewChat}
+          aria-label="New research"
         >
-          {message}
+          <Plus size={20} />
+        </button>
+      </header>
+
+      {showSaved ? (
+        <section style={{ paddingTop: "20px" }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <h2 style={{ fontSize: "19px" }}>
+              <FolderOpen size={19} /> Saved research
+            </h2>
+            <button
+              style={styles.iconButton}
+              onClick={() => setShowSaved(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {savedConversations.length === 0 ? (
+            <div style={styles.panel}>
+              <p style={styles.muted}>
+                No saved conversations yet. Save a research chat
+                to find it here later.
+              </p>
+            </div>
+          ) : (
+            savedConversations.map(item => (
+              <article key={item.id} style={styles.panel}>
+                <button
+                  onClick={() => openConversation(item.id)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#ffffff",
+                    textAlign: "left",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    padding: 0,
+                    width: "100%",
+                    cursor: "pointer"
+                  }}
+                >
+                  {item.title}
+                </button>
+
+                <p style={styles.muted}>
+                  {item.studio} · {item.messages?.length || 0} messages
+                </p>
+
+                <div style={{
+                  display: "flex",
+                  gap: "8px",
+                  alignItems: "center"
+                }}>
+                  <button
+                    style={styles.iconButton}
+                    onClick={() => openConversation(item.id)}
+                  >
+                    Open conversation
+                  </button>
+
+                  <button
+                    style={styles.iconButton}
+                    onClick={() => deleteConversation(item.id)}
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+      ) : (
+        <>
+          {!activeConversation ? (
+            <section style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "35px 12px"
+            }}>
+              <div style={{
+                width: "65px",
+                height: "65px",
+                borderRadius: "22px",
+                background: "#21172e",
+                display: "grid",
+                placeItems: "center",
+                color: "#c69aff",
+                marginBottom: "20px"
+              }}>
+                <Search size={30} />
+              </div>
+
+              <h1 style={{
+                fontSize: "25px",
+                margin: "0 0 9px"
+              }}>
+                What shall we discover?
+              </h1>
+
+              <p style={{
+                ...styles.muted,
+                maxWidth: "310px"
+              }}>
+                Ask NYX about anything. Explore ideas, people,
+                history, music, films, technology, businesses
+                and creative trends.
+              </p>
+            </section>
+          ) : (
+            <section style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "18px 2px"
+            }}>
+              <h2 style={{
+                fontSize: "16px",
+                color: "#c69aff",
+                marginBottom: "20px"
+              }}>
+                {activeConversation.title}
+              </h2>
+
+              {(activeConversation.messages || []).map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: item.role === "user"
+                      ? "flex-end"
+                      : "flex-start",
+                    marginBottom: "15px"
+                  }}
+                >
+                  <div style={{
+                    ...styles.message,
+                    background: item.role === "user"
+                      ? "#39234e"
+                      : "#17141f",
+                    border: item.role === "user"
+                      ? "1px solid #63418a"
+                      : "1px solid #30283c"
+                  }}>
+                    {item.role === "assistant" && (
+                      <div style={{
+                        color: "#c69aff",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        marginBottom: "7px"
+                      }}>
+                        NYX RESEARCH
+                      </div>
+                    )}
+
+                    {item.content}
+
+                    {item.searchUrl && (
+                      <a
+                        href={item.searchUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "7px",
+                          marginTop: "12px",
+                          color: "#d0a7ff",
+                          textDecoration: "none",
+                          fontWeight: 600
+                        }}
+                      >
+                        <ExternalLink size={15} />
+                        Explore search results
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div ref={bottomRef} />
+            </section>
+          )}
+
+          <div style={styles.composer}>
+            <textarea
+              value={message}
+              onChange={event => setMessage(event.target.value)}
+              onKeyDown={event => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  sendMessage();
+                }
+              }}
+              placeholder="Ask NYX to research something..."
+              style={styles.textarea}
+              rows={1}
+            />
+
+            <button
+              onClick={sendMessage}
+              disabled={!message.trim()}
+              style={{
+                ...styles.iconButton,
+                background: message.trim() ? "#8750c9" : "#30283c",
+                color: "#ffffff",
+                border: "none",
+                opacity: message.trim() ? 1 : 0.5
+              }}
+              aria-label="Send research question"
+            >
+              <Send size={19} />
+            </button>
+          </div>
+
+          {activeConversation && (
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              marginTop: "12px"
+            }}>
+              <button
+                style={styles.iconButton}
+                onClick={toggleSaved}
+              >
+                <Bookmark size={16} />
+                {activeConversation.saved ? "Saved" : "Save chat"}
+              </button>
+
+              <button
+                style={styles.iconButton}
+                onClick={attachResearch}
+              >
+                <FolderOpen size={16} />
+                Use in studio
+              </button>
+
+              <button
+                style={styles.iconButton}
+                onClick={() => deleteConversation(activeId)}
+                aria-label="Delete current conversation"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {notice && (
+        <div style={{
+          background: "#21172e",
+          border: "1px solid #63418a",
+          borderRadius: "12px",
+          padding: "11px",
+          marginTop: "12px",
+          color: "#e9dcff",
+          fontSize: "13px"
+        }}>
+          {notice}
           <button
-            onClick={() => setMessage("")}
+            onClick={() => setNotice("")}
             style={{
               float: "right",
               background: "transparent",
-              border: "none",
-              color: "white",
-              cursor: "pointer"
+              color: "#ffffff",
+              border: "none"
             }}
           >
             ×
