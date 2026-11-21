@@ -1,546 +1,772 @@
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Search,
   Plus,
-  Link as LinkIcon,
-  Video,
-  Music2,
-  Clapperboard,
-  MapPin,
-  CalendarDays,
-  Image,
-  TrendingUp,
-  BookOpen,
-  Package,
-  Check,
+  Trash2,
   ExternalLink,
-  X,
+  BookOpen,
+  TrendingUp,
+  Globe,
+  Lightbulb,
+  FolderOpen,
   Sparkles,
-  FolderPlus,
   Compass,
+  Music,
+  Film,
+  Video,
+  Mic,
+  Palette,
+  Gamepad2,
+  Building2,
+  ShieldCheck,
+  Check,
+  Link as LinkIcon
 } from "lucide-react";
 
-const RESEARCH_TYPES = [
-  { name: "Videos", icon: Video },
-  { name: "Sounds & Music", icon: Music2 },
-  { name: "Movies & Scenes", icon: Clapperboard },
-  { name: "Places & Destinations", icon: MapPin },
-  { name: "Events", icon: CalendarDays },
-  { name: "Images & Styles", icon: Image },
-  { name: "Trends", icon: TrendingUp },
-  { name: "Facts & Topics", icon: BookOpen },
-  { name: "Products & Brands", icon: Package },
+const STORAGE_KEY = "nyx-shared-research-library-v1";
+
+const CATEGORIES = [
+  "All research",
+  "History & Culture",
+  "Science & Technology",
+  "Music & Beats",
+  "Sounds & Audio",
+  "Movies & Film",
+  "Video & Editing",
+  "Animation & Visual Effects",
+  "Books & Literature",
+  "Characters & Storytelling",
+  "Games & Interactive Media",
+  "Fashion & Design",
+  "Photography & Art",
+  "Marketing & Social Media",
+  "Trends & Audience Interests",
+  "Companies & Organisations",
+  "Business & Industries",
+  "Products & Brands",
+  "Places & Events",
+  "Education & Knowledge",
+  "Other"
 ];
 
-const SOURCES = [
-  "Any source",
-  "TikTok",
-  "YouTube",
-  "Instagram",
-  "Web",
-  "My own files",
+const RIGHTS = [
+  "My own work",
+  "Public domain",
+  "Licensed material",
+  "Creator-authorised",
+  "Public viewing only",
+  "Rights unclear"
 ];
 
-const styles = {
-  page: {
-    minHeight: "100%",
-    padding: "24px",
-    color: "#f5efff",
-    background: "#0b0712",
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  muted: { color: "#a99bb9" },
-  panel: {
-    background: "#130d1e",
-    border: "1px solid rgba(190,151,255,.16)",
-    borderRadius: "18px",
-    padding: "20px",
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "13px 14px",
-    borderRadius: "11px",
-    border: "1px solid rgba(190,151,255,.2)",
-    background: "#0b0712",
-    color: "#f5efff",
-    outline: "none",
-    fontSize: "14px",
-  },
-  button: {
-    border: 0,
-    borderRadius: "11px",
-    padding: "12px 16px",
-    background: "#9b68ed",
-    color: "white",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  secondary: {
-    border: "1px solid rgba(190,151,255,.2)",
-    borderRadius: "11px",
-    padding: "11px 14px",
-    background: "#1b1229",
-    color: "#f5efff",
-    cursor: "pointer",
-  },
+const STUDIO_CATEGORIES = {
+  "Film & Video": [
+    "Movies & Film",
+    "Video & Editing",
+    "Photography & Art",
+    "Characters & Storytelling"
+  ],
+  "Edit Studio": [
+    "Video & Editing",
+    "Movies & Film",
+    "Trends & Audience Interests",
+    "Photography & Art"
+  ],
+  "Beat Studio": [
+    "Music & Beats",
+    "Sounds & Audio",
+    "Trends & Audience Interests"
+  ],
+  "Music": [
+    "Music & Beats",
+    "Sounds & Audio",
+    "History & Culture"
+  ],
+  "Books & Writing": [
+    "Books & Literature",
+    "History & Culture",
+    "Characters & Storytelling"
+  ],
+  "Storytelling & Voice": [
+    "Characters & Storytelling",
+    "Books & Literature",
+    "Sounds & Audio"
+  ],
+  "Game Creation": [
+    "Games & Interactive Media",
+    "Characters & Storytelling",
+    "Science & Technology"
+  ],
+  "Marketing": [
+    "Marketing & Social Media",
+    "Trends & Audience Interests",
+    "Business & Industries"
+  ],
+  "Character Studio": [
+    "Characters & Storytelling",
+    "Fashion & Design",
+    "History & Culture"
+  ],
+  "Audio Production": [
+    "Sounds & Audio",
+    "Music & Beats",
+    "Trends & Audience Interests"
+  ],
+  "Animation": [
+    "Animation & Visual Effects",
+    "Photography & Art",
+    "Characters & Storytelling"
+  ],
+  "Comedy & Entertainment": [
+    "Trends & Audience Interests",
+    "Video & Editing",
+    "Characters & Storytelling"
+  ],
+  "Audiobook Production": [
+    "Books & Literature",
+    "Sounds & Audio",
+    "Characters & Storytelling"
+  ],
+  "Research & Discovery": [
+    "All research",
+    "History & Culture",
+    "Science & Technology"
+  ]
 };
 
-export default function ResearchHub({
-  studio,
-  onBack,
-  onAttach,
-}) {
+function loadLibrary() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getStudioName(studio) {
+  if (!studio) return "All Studios";
+  if (typeof studio === "string") return studio;
+  return studio.name || studio.title || "All Studios";
+}
+
+export default function ResearchHub({ studio, onBack, onAttach }) {
+  const studioName = getStudioName(studio);
+
+  const suggestedCategories =
+    STUDIO_CATEGORIES[studioName] || [
+      "All research",
+      "Trends & Audience Interests",
+      "History & Culture"
+    ];
+
+  const [library, setLibrary] = useState(loadLibrary);
   const [brief, setBrief] = useState("");
-  const [type, setType] = useState("Videos");
-  const [source, setSource] = useState("Any source");
+  const [category, setCategory] = useState("All research");
+  const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  const [label, setLabel] = useState("");
   const [notes, setNotes] = useState("");
-  const [references, setReferences] = useState([]);
+  const [rights, setRights] = useState("Public viewing only");
+  const [filter, setFilter] = useState("All");
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState("");
 
-  const studioName =
-    typeof studio === "string"
-      ? studio
-      : studio?.name || "Your studio";
-
-  const selectedReferences = useMemo(
-    () => references.filter((item) => selected.includes(item.id)),
-    [references, selected]
-  );
-
-  function addReference(event) {
-    event.preventDefault();
-    setMessage("");
-
-    let cleanUrl;
-
+  useEffect(() => {
     try {
-      cleanUrl = new URL(url.trim());
-
-      if (!["http:", "https:"].includes(cleanUrl.protocol)) {
-        throw new Error("Invalid protocol");
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
     } catch {
-      setMessage("Please enter a valid web link beginning with https://");
+      setMessage("Could not save. Your device storage may be full.");
+    }
+  }, [library]);
+
+  const visibleItems = useMemo(() => {
+    return library.filter(item => {
+      const matchesStudio =
+        filter === "All" ||
+        item.studio === filter ||
+        item.studio === "All Studios";
+
+      const matchesCategory =
+        category === "All research" ||
+        item.category === category;
+
+      return matchesStudio && matchesCategory;
+    });
+  }, [library, filter, category]);
+
+  function searchWeb(mode) {
+    const query = brief.trim();
+
+    if (!query) {
+      setMessage("Write what you want to research first.");
       return;
     }
 
-    const item = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: label.trim() || cleanUrl.hostname,
-      url: cleanUrl.href,
-      notes: notes.trim(),
-      type,
-      source: source === "Any source" ? "Web link" : source,
-    };
+    let searchQuery = query;
 
-    setReferences((current) => [item, ...current]);
-    setSelected((current) => [...current, item.id]);
-    setUrl("");
-    setLabel("");
-    setNotes("");
-    setMessage("Reference added to your research collection.");
+    if (mode === "trends") {
+      searchQuery =
+        `latest current trends ${query} audience interests`;
+    }
+
+    if (mode === "techniques") {
+      searchQuery =
+        `${query} creative techniques examples analysis`;
+    }
+
+    if (mode === "history") {
+      searchQuery =
+        `${query} history background facts reliable sources`;
+    }
+
+    const destination =
+      "https://www.google.com/search?q=" +
+      encodeURIComponent(searchQuery);
+
+    window.open(destination, "_blank", "noopener,noreferrer");
   }
 
-  function toggleSelected(id) {
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+  function saveReference() {
+    if (!title.trim() || !url.trim()) {
+      setMessage("Please add a title and a link.");
+      return;
+    }
+
+    let validUrl;
+
+    try {
+      validUrl = new URL(url.trim());
+
+      if (
+        validUrl.protocol !== "https:" &&
+        validUrl.protocol !== "http:"
+      ) {
+        throw new Error("Invalid link");
+      }
+    } catch {
+      setMessage("Please enter a valid website link.");
+      return;
+    }
+
+    const reference = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      title: title.trim(),
+      url: validUrl.href,
+      notes: notes.trim(),
+      category,
+      rights,
+      studio: studioName,
+      createdAt: new Date().toISOString()
+    };
+
+    setLibrary(previous => [reference, ...previous]);
+    setSelected(previous => [...previous, reference.id]);
+
+    setTitle("");
+    setUrl("");
+    setNotes("");
+    setMessage("Saved to your shared research library.");
   }
 
   function removeReference(id) {
-    setReferences((current) =>
-      current.filter((item) => item.id !== id)
+    setLibrary(previous =>
+      previous.filter(item => item.id !== id)
     );
-    setSelected((current) =>
-      current.filter((item) => item !== id)
+
+    setSelected(previous =>
+      previous.filter(item => item !== id)
+    );
+  }
+
+  function toggleReference(id) {
+    setSelected(previous =>
+      previous.includes(id)
+        ? previous.filter(item => item !== id)
+        : [...previous, id]
     );
   }
 
   function attachReferences() {
-    if (!selectedReferences.length) {
-      setMessage("Select at least one reference first.");
+    const chosen = library.filter(item =>
+      selected.includes(item.id)
+    );
+
+    if (!chosen.length) {
+      setMessage("Select some references first.");
       return;
     }
 
-    onAttach?.(selectedReferences);
-    setMessage(
-      `${selectedReferences.length} reference(s) sent to ${studioName}.`
-    );
+    if (typeof onAttach === "function") {
+      onAttach(chosen);
+      setMessage("References sent to your studio project.");
+    } else {
+      setMessage("References remain saved in your library.");
+    }
   }
 
+  const styles = {
+    page: {
+      minHeight: "100vh",
+      background: "#09070f",
+      color: "#f5efff",
+      padding: "20px",
+      boxSizing: "border-box"
+    },
+    panel: {
+      background: "#151020",
+      border: "1px solid #30213f",
+      borderRadius: "16px",
+      padding: "18px",
+      marginBottom: "16px"
+    },
+    muted: {
+      color: "#a99bb9",
+      fontSize: "13px",
+      lineHeight: 1.6
+    },
+    input: {
+      width: "100%",
+      boxSizing: "border-box",
+      background: "#0d0915",
+      border: "1px solid #49345e",
+      borderRadius: "10px",
+      color: "#ffffff",
+      padding: "12px",
+      marginTop: "7px",
+      marginBottom: "13px",
+      outline: "none"
+    },
+    button: {
+      background: "#8750c9",
+      color: "#ffffff",
+      border: "none",
+      borderRadius: "10px",
+      padding: "11px 14px",
+      cursor: "pointer",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "7px",
+      fontWeight: 600
+    },
+    secondary: {
+      background: "#241932",
+      color: "#e6d8f7",
+      border: "1px solid #49345e",
+      borderRadius: "10px",
+      padding: "10px 13px",
+      cursor: "pointer",
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "7px"
+    }
+  };
+
   return (
-    <div style={styles.page}>
-      <div style={{ maxWidth: "1050px", margin: "0 auto" }}>
-        <button
-          onClick={onBack}
-          style={{
-            ...styles.secondary,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "24px",
-          }}
-        >
-          <ArrowLeft size={17} />
-          Back
+    <main style={styles.page}>
+      <header style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginBottom: "24px"
+      }}>
+        <button style={styles.secondary} onClick={onBack}>
+          <ArrowLeft size={17} /> Back
         </button>
 
-        <div style={{ marginBottom: "28px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              color: "#c4a2ff",
-              marginBottom: "10px",
-            }}
-          >
-            <Compass size={22} />
-            <span style={{ fontWeight: 700 }}>NYX DISCOVERY</span>
-          </div>
+        <span style={styles.muted}>
+          <Globe size={15} /> Shared NYX research
+        </span>
+      </header>
 
-          <h1
-            style={{
-              fontSize: "clamp(28px, 5vw, 42px)",
-              margin: "0 0 10px",
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
-            Research before you create.
-          </h1>
-
-          <p style={{ ...styles.muted, lineHeight: 1.7, maxWidth: "650px" }}>
-            Find inspiration, collect references and give NYX a clearer
-            understanding of what you want to make. Your research can
-            travel with your project into other studios.
-          </p>
+      <section style={{ marginBottom: "22px" }}>
+        <div style={{
+          color: "#bd8aff",
+          fontSize: "13px",
+          fontWeight: 700,
+          letterSpacing: "1px"
+        }}>
+          <Sparkles size={17} /> NYX INTELLIGENCE
         </div>
 
-        <div
+        <h1 style={{ fontSize: "28px", margin: "9px 0" }}>
+          Research & Discovery
+        </h1>
+
+        <p style={styles.muted}>
+          Discover knowledge. Explore creative references.
+          Understand industries and trends. Give every studio
+          better information before it creates.
+        </p>
+      </section>
+
+      <section style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>
+          <Compass size={18} /> Active studio
+        </h3>
+
+        <strong style={{ color: "#c99cff" }}>
+          {studioName}
+        </strong>
+
+        <p style={styles.muted}>
+          This studio can use the shared research library.
+          Research saved here can also be reused by other studios.
+        </p>
+
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px"
+        }}>
+          {suggestedCategories.map(item => (
+            <button
+              key={item}
+              style={styles.secondary}
+              onClick={() => {
+                setCategory(item);
+                setBrief(
+                  item === "All research" ? "" : item
+                );
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>
+          <Search size={18} /> Discover and investigate
+        </h3>
+
+        <p style={styles.muted}>
+          Research anything relevant to your project:
+          facts, history, science, music, editing, characters,
+          companies, products, techniques and more.
+        </p>
+
+        <textarea
           style={{
-            ...styles.panel,
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            marginBottom: "22px",
+            ...styles.input,
+            minHeight: "105px",
+            resize: "vertical"
           }}
+          value={brief}
+          onChange={event => setBrief(event.target.value)}
+          placeholder="What do you want NYX research to explore?"
+        />
+
+        <label style={styles.muted}>Research area</label>
+
+        <select
+          style={styles.input}
+          value={category}
+          onChange={event => setCategory(event.target.value)}
         >
-          <Sparkles color="#c4a2ff" size={23} />
-          <div>
-            <div style={{ fontWeight: 700 }}>Working in {studioName}</div>
-            <div style={{ ...styles.muted, fontSize: "13px", marginTop: 4 }}>
-              Research collected here is intended for this creative project.
-            </div>
-          </div>
+          {CATEGORIES.map(item => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "9px"
+        }}>
+          <button
+            style={styles.button}
+            onClick={() => searchWeb("general")}
+          >
+            <Search size={16} /> Search web
+          </button>
+
+          <button
+            style={styles.secondary}
+            onClick={() => searchWeb("trends")}
+          >
+            <TrendingUp size={16} /> Explore trends
+          </button>
+
+          <button
+            style={styles.secondary}
+            onClick={() => searchWeb("techniques")}
+          >
+            <Lightbulb size={16} /> Study techniques
+          </button>
+
+          <button
+            style={styles.secondary}
+            onClick={() => searchWeb("history")}
+          >
+            <BookOpen size={16} /> Explore knowledge
+          </button>
         </div>
 
-        <div style={styles.panel}>
-          <h2 style={{ fontSize: "19px", marginTop: 0 }}>
-            What are you looking for?
-          </h2>
+        <p style={styles.muted}>
+          These buttons open external search results. Automatic
+          in-app web research, source verification and AI analysis
+          are part of the next backend upgrade.
+        </p>
+      </section>
 
-          <textarea
-            value={brief}
-            onChange={(event) => setBrief(event.target.value)}
-            placeholder="Example: Find popular videos using the same sound, with creative transitions and strong storytelling..."
-            rows={3}
-            style={{
-              ...styles.input,
-              resize: "vertical",
-              lineHeight: 1.6,
-            }}
-          />
+      <section style={styles.panel}>
+        <h3 style={{ marginTop: 0 }}>
+          <Plus size={18} /> Save a reference
+        </h3>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-              gap: "14px",
-              marginTop: "16px",
-            }}
-          >
-            <label style={{ fontSize: "13px", color: "#c4a2ff" }}>
-              Research category
-              <select
-                value={type}
-                onChange={(event) => setType(event.target.value)}
-                style={{ ...styles.input, marginTop: "7px" }}
-              >
-                {RESEARCH_TYPES.map((item) => (
-                  <option key={item.name}>{item.name}</option>
-                ))}
-              </select>
-            </label>
+        <p style={styles.muted}>
+          Save useful articles, videos, music references,
+          research pages and other sources.
+        </p>
 
-            <label style={{ fontSize: "13px", color: "#c4a2ff" }}>
-              Preferred source
-              <select
-                value={source}
-                onChange={(event) => setSource(event.target.value)}
-                style={{ ...styles.input, marginTop: "7px" }}
-              >
-                {SOURCES.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+        <label style={styles.muted}>Reference title</label>
+        <input
+          style={styles.input}
+          value={title}
+          onChange={event => setTitle(event.target.value)}
+          placeholder="Name this reference"
+        />
 
-          <div
-            style={{
-              marginTop: "16px",
-              padding: "13px",
-              borderRadius: "11px",
-              background: "rgba(155,104,237,.09)",
-              color: "#c4a2ff",
-              fontSize: "13px",
-              lineHeight: 1.6,
-            }}
-          >
-            <Search size={16} style={{ verticalAlign: "middle", marginRight: 7 }} />
-            Live platform discovery is not connected yet. NYX will not show
-            invented search results, rankings or view counts.
-          </div>
+        <label style={styles.muted}>Website link</label>
+        <input
+          style={styles.input}
+          value={url}
+          onChange={event => setUrl(event.target.value)}
+          placeholder="https://..."
+        />
+
+        <label style={styles.muted}>Category</label>
+        <select
+          style={styles.input}
+          value={category}
+          onChange={event => setCategory(event.target.value)}
+        >
+          {CATEGORIES.filter(item => item !== "All research").map(item => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <label style={styles.muted}>Rights and permissions</label>
+        <select
+          style={styles.input}
+          value={rights}
+          onChange={event => setRights(event.target.value)}
+        >
+          {RIGHTS.map(item => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <label style={styles.muted}>Research notes</label>
+        <textarea
+          style={{
+            ...styles.input,
+            minHeight: "85px",
+            resize: "vertical"
+          }}
+          value={notes}
+          onChange={event => setNotes(event.target.value)}
+          placeholder="What did you discover? What should the studio learn from this?"
+        />
+
+        <button style={styles.button} onClick={saveReference}>
+          <Plus size={16} /> Save reference
+        </button>
+      </section>
+
+      <section style={styles.panel}>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "10px"
+        }}>
+          <h3 style={{ margin: 0 }}>
+            <FolderOpen size={18} /> Shared research library
+          </h3>
+
+          <span style={styles.muted}>
+            {library.length} references
+          </span>
         </div>
 
-        <div style={{ ...styles.panel, marginTop: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <LinkIcon color="#c4a2ff" size={20} />
-            <h2 style={{ fontSize: "19px", margin: 0 }}>
-              Add a reference link
-            </h2>
+        <p style={styles.muted}>
+          Your saved references are available to the NYX studios
+          using this browser and device.
+        </p>
+
+        <label style={styles.muted}>Filter by studio</label>
+        <select
+          style={styles.input}
+          value={filter}
+          onChange={event => setFilter(event.target.value)}
+        >
+          <option value="All">All studios</option>
+          {Object.keys(STUDIO_CATEGORIES).map(name => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          <option value="All Studios">General references</option>
+        </select>
+
+        <label style={styles.muted}>Filter by category</label>
+        <select
+          style={styles.input}
+          value={category}
+          onChange={event => setCategory(event.target.value)}
+        >
+          {CATEGORIES.map(item => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        {visibleItems.length === 0 ? (
+          <div style={{
+            textAlign: "center",
+            padding: "25px 10px",
+            color: "#a99bb9"
+          }}>
+            <BookOpen size={30} />
+            <p>No matching research references yet.</p>
           </div>
-
-          <p style={{ ...styles.muted, fontSize: "13px", lineHeight: 1.6 }}>
-            Paste a video, sound, article, destination or other reference
-            you want to keep with your project.
-          </p>
-
-          <form onSubmit={addReference}>
-            <input
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="Reference name (optional)"
-              style={{ ...styles.input, marginBottom: "10px" }}
-            />
-
-            <input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://..."
-              type="url"
-              required
-              style={{ ...styles.input, marginBottom: "10px" }}
-            />
-
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="What should NYX pay attention to in this reference?"
-              rows={2}
+        ) : (
+          visibleItems.map(item => (
+            <article
+              key={item.id}
               style={{
-                ...styles.input,
-                resize: "vertical",
-                marginBottom: "12px",
-              }}
-            />
-
-            <button
-              type="submit"
-              style={{
-                ...styles.button,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
+                borderTop: "1px solid #30213f",
+                padding: "15px 0"
               }}
             >
-              <Plus size={17} />
-              Add reference
-            </button>
-          </form>
+              <div style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "10px"
+              }}>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(item.id)}
+                  onChange={() => toggleReference(item.id)}
+                  style={{ marginTop: "5px" }}
+                />
 
-          {message && (
-            <p
-              role="status"
-              style={{
-                color: "#c4a2ff",
-                fontSize: "13px",
-                marginBottom: 0,
-              }}
-            >
-              {message}
-            </p>
-          )}
-        </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{item.title}</strong>
 
-        <div style={{ marginTop: "26px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-              flexWrap: "wrap",
-              marginBottom: "14px",
-            }}
-          >
-            <div>
-              <h2 style={{ margin: 0, fontSize: "20px" }}>
-                Your research collection
-              </h2>
-              <p style={{ ...styles.muted, fontSize: "13px" }}>
-                {references.length} reference(s) added · {selected.length} selected
-              </p>
-            </div>
+                  <p style={styles.muted}>
+                    {item.category} · Saved from {item.studio}
+                  </p>
 
-            <button
-              onClick={attachReferences}
-              disabled={!selected.length}
-              style={{
-                ...styles.button,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                opacity: selected.length ? 1 : 0.45,
-                cursor: selected.length ? "pointer" : "not-allowed",
-              }}
-            >
-              <FolderPlus size={17} />
-              Attach to project
-            </button>
-          </div>
+                  {item.notes && (
+                    <p style={styles.muted}>{item.notes}</p>
+                  )}
 
-          {references.length === 0 ? (
-            <div
-              style={{
-                ...styles.panel,
-                textAlign: "center",
-                padding: "38px 20px",
-              }}
-            >
-              <Compass
-                size={34}
-                color="#9b68ed"
-                style={{ marginBottom: "12px" }}
-              />
-              <h3 style={{ margin: "0 0 8px" }}>
-                Your collection starts here
-              </h3>
-              <p style={{ ...styles.muted, fontSize: "13px", lineHeight: 1.6 }}>
-                Add a reference link above. Your saved references will appear
-                here for selection.
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {references.map((item) => {
-                const isSelected = selected.includes(item.id);
+                  <p style={styles.muted}>
+                    Rights: {item.rights}
+                  </p>
 
-                return (
-                  <div
-                    key={item.id}
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
                     style={{
-                      ...styles.panel,
-                      borderColor: isSelected
-                        ? "rgba(155,104,237,.65)"
-                        : "rgba(190,151,255,.16)",
+                      color: "#c99cff",
+                      fontSize: "13px",
+                      overflowWrap: "anywhere"
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: "12px",
-                      }}
-                    >
-                      <button
-                        onClick={() => toggleSelected(item.id)}
-                        aria-label={isSelected ? "Deselect reference" : "Select reference"}
-                        style={{
-                          width: "25px",
-                          height: "25px",
-                          flexShrink: 0,
-                          borderRadius: "7px",
-                          border: "1px solid #9b68ed",
-                          background: isSelected ? "#9b68ed" : "transparent",
-                          color: "white",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {isSelected && <Check size={16} />}
-                      </button>
+                    <ExternalLink
+                      size={13}
+                      style={{ verticalAlign: "middle" }}
+                    /> Open reference
+                  </a>
+                </div>
 
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 700, marginBottom: "5px" }}>
-                          {item.title}
-                        </div>
-                        <div style={{ ...styles.muted, fontSize: "12px" }}>
-                          {item.type} · {item.source}
-                        </div>
+                <button
+                  style={styles.secondary}
+                  onClick={() => removeReference(item.id)}
+                  title="Delete reference"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </article>
+          ))
+        )}
 
-                        {item.notes && (
-                          <p style={{ fontSize: "13px", lineHeight: 1.5 }}>
-                            {item.notes}
-                          </p>
-                        )}
-
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            color: "#c4a2ff",
-                            fontSize: "12px",
-                            overflowWrap: "anywhere",
-                          }}
-                        >
-                          <ExternalLink
-                            size={13}
-                            style={{ verticalAlign: "middle", marginRight: 5 }}
-                          />
-                          Open reference
-                        </a>
-                      </div>
-
-                      <button
-                        onClick={() => removeReference(item.id)}
-                        aria-label="Remove reference"
-                        style={{
-                          ...styles.secondary,
-                          padding: "7px",
-                          display: "flex",
-                        }}
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <p
+        <button
           style={{
-            ...styles.muted,
-            fontSize: "12px",
-            lineHeight: 1.6,
-            marginTop: "24px",
+            ...styles.button,
+            marginTop: "15px"
+          }}
+          onClick={attachReferences}
+        >
+          <Check size={16} /> Attach selected to studio project
+        </button>
+      </section>
+
+      <section style={{
+        ...styles.panel,
+        borderColor: "#49345e"
+      }}>
+        <h3 style={{ marginTop: 0 }}>
+          <ShieldCheck size={18} /> Respect creative rights
+        </h3>
+
+        <p style={styles.muted}>
+          Publicly viewing a creation does not automatically give
+          permission to download, copy, modify, reuse or publish it.
+          Research can study techniques and inspiration while
+          keeping original creators' rights protected.
+        </p>
+      </section>
+
+      {message && (
+        <div
+          role="status"
+          style={{
+            position: "sticky",
+            bottom: "12px",
+            background: "#241932",
+            border: "1px solid #8750c9",
+            color: "#ffffff",
+            padding: "13px",
+            borderRadius: "12px",
+            marginTop: "15px"
           }}
         >
-          Only add links you are allowed to access. Saving a reference does
-          not grant permission to download, reuse or publish its content.
-        </p>
-      </div>
-    </div>
+          {message}
+          <button
+            onClick={() => setMessage("")}
+            style={{
+              float: "right",
+              background: "transparent",
+              border: "none",
+              color: "white",
+              cursor: "pointer"
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </main>
   );
 }
