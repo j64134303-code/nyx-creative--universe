@@ -363,16 +363,30 @@ export default function App() {
           content: item.text
         }));
 
-      const { data, error } = await supabase.functions.invoke(
-        "nyx-intelligence",
-        {
-          body: {
-            message,
-            studioName: activeStudio.name,
-            history
-          }
-        }
-      );
+const { data: sessionData, error: sessionError } =
+  await supabase.auth.getSession();
+
+if (sessionError) throw sessionError;
+
+const accessToken = sessionData.session?.access_token;
+
+if (!accessToken) {
+  throw new Error("Your login session has expired. Please sign in again.");
+}
+
+const { data, error } = await supabase.functions.invoke(
+  "nyx-intelligence",
+  {
+    body: {
+      message,
+      studioName: activeStudio.name,
+      history
+    },
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  }
+);
 
       if (error) {
         throw error;
