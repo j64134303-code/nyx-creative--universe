@@ -86,19 +86,14 @@ function extractBrowserSources(aiMessage: any) {
       if (seen.has(url)) continue;
       seen.add(url);
 
-      const publisher = parsed.hostname
-        .replace(/^www\./i, "");
+      const publisher = parsed.hostname.replace(/^www\./i, "");
 
       const title =
         typeof item.title === "string" && item.title.trim()
           ? item.title.trim().slice(0, 250)
           : publisher;
 
-      sources.push({
-        title,
-        publisher,
-        url,
-      });
+      sources.push({ title, publisher, url });
 
       if (sources.length >= 8) break;
     } catch {
@@ -141,10 +136,7 @@ function buildLimitedHistory(history: any[]) {
   for (const item of history.slice(-8)) {
     if (remaining <= 0) break;
 
-    const content = item.content.slice(
-      0,
-      Math.min(1800, remaining),
-    );
+    const content = item.content.slice(0, Math.min(1800, remaining));
 
     if (!content.trim()) continue;
 
@@ -156,9 +148,7 @@ function buildLimitedHistory(history: any[]) {
 }
 
 function buildMemoryContext(memories: any[]) {
-  if (!memories.length) {
-    return "No saved memories available.";
-  }
+  if (!memories.length) return "No saved memories available.";
 
   return memories.map((memory, index) => {
     let content = "";
@@ -365,7 +355,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
+    const openRouterApiKey =
+      Deno.env.get("OPENROUTER_API_KEY")?.trim() ?? "";
 
     if (!supabaseUrl || !supabaseAnonKey || !groqApiKey) {
       console.error("NYX CORE configuration is incomplete.");
@@ -375,12 +366,12 @@ Deno.serve(async (req) => {
       }, 500);
     }
 
+    console.log("NYX OpenRouter backup key configured:", Boolean(openRouterApiKey));
+
     const authorization = req.headers.get("Authorization");
 
     if (!authorization?.startsWith("Bearer ")) {
-      return jsonResponse({
-        error: "Authentication required.",
-      }, 401);
+      return jsonResponse({ error: "Authentication required." }, 401);
     }
 
     const token = authorization.slice(7);
@@ -408,9 +399,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     const message =
-      typeof body.message === "string"
-        ? body.message.trim()
-        : "";
+      typeof body.message === "string" ? body.message.trim() : "";
 
     const studioName =
       typeof body.studioName === "string"
@@ -420,9 +409,7 @@ Deno.serve(async (req) => {
           : "General";
 
     if (!message) {
-      return jsonResponse({
-        error: "Please provide a message.",
-      }, 400);
+      return jsonResponse({ error: "Please provide a message." }, 400);
     }
 
     if (message.length > 12000) {
@@ -445,8 +432,7 @@ Deno.serve(async (req) => {
     const preferencePattern =
       /\b(remember|from now on|going forward|always|never|i prefer|my preference|our project rules|for every studio|across all studios|keep this in mind)\b/i;
 
-    const isCreatorPreference =
-      preferencePattern.test(message);
+    const isCreatorPreference = preferencePattern.test(message);
 
     const currentDate = new Date().toISOString().slice(0, 10);
     const currentYear = currentDate.slice(0, 4);
@@ -457,9 +443,7 @@ Deno.serve(async (req) => {
     const { data: memoryData, error: memoryError } =
       await supabase
         .from("nyx_shared_memory")
-        .select(
-          "memory_type, title, content, studio, updated_at",
-        )
+        .select("memory_type, title, content, studio, updated_at")
         .eq("user_id", userId)
         .order("updated_at", { ascending: false })
         .limit(4);
@@ -497,9 +481,7 @@ Deno.serve(async (req) => {
     };
 
     if (researchRequested) {
-      groqRequest.tools = [
-        { type: "browser_search" },
-      ];
+      groqRequest.tools = [{ type: "browser_search" }];
       groqRequest.tool_choice = "required";
     }
 
@@ -529,6 +511,8 @@ Deno.serve(async (req) => {
       );
 
       if (!openRouterApiKey) {
+        console.error("OpenRouter backup key is missing or empty.");
+
         return jsonResponse({
           error: "Groq's usage limit has been reached and the OpenRouter backup key is not configured.",
           code: "BACKUP_NOT_CONFIGURED",
@@ -594,8 +578,6 @@ Deno.serve(async (req) => {
       activeProvider = "OpenRouter";
       activeModel = result.model ?? "openrouter/free";
 
-      console.log("NYX is responding through free OpenRouter backup.");
-
     } else if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
 
@@ -613,6 +595,17 @@ Deno.serve(async (req) => {
 
     } else {
       result = await groqResponse.json();
+    }
+
+    // SAFE PROVIDER TRACKING: never log API keys or user messages.
+    console.log(
+      `NYX_PROVIDER=${activeProvider} MODEL=${activeModel}`,
+    );
+
+    if (activeProvider === "OpenRouter") {
+      console.log("NYX successfully used the free OpenRouter backup.");
+    } else {
+      console.log("NYX successfully used the primary Groq provider.");
     }
 
     const aiMessage = result.choices?.[0]?.message;
@@ -634,7 +627,6 @@ Deno.serve(async (req) => {
       ? cleanResearchText(response)
       : decodeHtmlEntities(response).trim();
 
-    // Only actual URLs returned by Groq's browser tool become sources.
     const sources =
       researchRequested && activeProvider === "Groq"
         ? extractBrowserSources(aiMessage)
@@ -648,8 +640,7 @@ Deno.serve(async (req) => {
       /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you)[!. ]*$/i
         .test(message);
 
-    const shouldSaveMemory =
-      message.length >= 20 && !isGreeting;
+    const shouldSaveMemory = message.length >= 20 && !isGreeting;
 
     let memorySaved = false;
     let memoryWriteError: string | null = null;
@@ -701,11 +692,7 @@ Deno.serve(async (req) => {
 
       if (memoryInsertError) {
         memoryWriteError = memoryInsertError.message;
-
-        console.error(
-          "NYX memory write error:",
-          memoryInsertError.message,
-        );
+        console.error("NYX memory write error:", memoryInsertError.message);
       } else {
         memorySaved = true;
       }
@@ -736,14 +723,11 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       error:
-        error instanceof Error &&
-        error.name === "TimeoutError"
+        error instanceof Error && error.name === "TimeoutError"
           ? "NYX CORE took too long to respond. Please try again."
           : "NYX CORE encountered an unexpected error.",
       details:
-        error instanceof Error
-          ? error.message
-          : String(error),
+        error instanceof Error ? error.message : String(error),
     }, 500);
   }
 });
