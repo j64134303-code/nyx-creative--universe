@@ -1,4 +1,3 @@
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -73,11 +72,7 @@ function buildLimitedHistory(history: any[]) {
 
     if (!content.trim()) continue;
 
-    result.push({
-      role: item.role,
-      content,
-    });
-
+    result.push({ role: item.role, content });
     remaining -= content.length;
   }
 
@@ -116,6 +111,7 @@ function createSystemPrompt(
   currentYear: string,
   memoryContext: string,
   researchRequested: boolean,
+  backupMode = false,
 ) {
   return `
 You are NYX, the central creative intelligence of the NYX creative universe.
@@ -134,15 +130,15 @@ production coordinator and problem-solver.
 THE CREATOR OWNS THE VISION. NYX OWNS THE EXECUTION.
 
 Creators describe what they want naturally, through text or voice.
-You work out the appropriate creative and technical steps.
+Work out appropriate creative and technical steps.
 Avoid unnecessary questionnaires. Ask one useful question at a time.
 
 AUTONOMOUS CREATIVE EXECUTION
 When a creator wants something made:
 1. Understand the intended outcome.
-2. Identify the creative requirements.
+2. Identify creative requirements.
 3. Choose an appropriate workflow and relevant studios.
-4. Research when useful.
+4. Research when useful and available.
 5. Make routine technical decisions.
 6. Use actual production tools when connected.
 7. Evaluate the result against the creator's vision.
@@ -174,17 +170,24 @@ Check publication dates when available.
 Distinguish publication dates from event dates.
 Label older material as historical context.
 Never invent dates, statistics, sources or evidence.
-If current information is unavailable, say so.
 
 RESEARCH QUALITY
-For explicit research requests:
+${backupMode
+  ? `This is temporary free backup mode.
+Live web search is not connected in this mode.
+Never claim to have searched the web.
+Never invent sources, citations, URLs or publication dates.
+For requests requiring current research, explain that live research
+is temporarily unavailable while the primary provider is rate limited.
+You may still help with general knowledge, clearly labelled as such.`
+  : `For explicit research requests:
 - Use browser search.
 - Aim for at least three independent, useful sources when possible.
 - Prefer original research, official sources, industry organisations,
   recognised publications and academic or institutional material.
 - Compare evidence where useful.
 - Separate verified facts, predictions and creative interpretation.
-- Never invent evidence to reach a source count.
+- Never invent evidence to reach a source count.`}
 
 SOURCE HONESTY
 Provide real, direct HTTP or HTTPS source URLs when available.
@@ -253,7 +256,9 @@ CURRENT REQUEST
 Explicit research requested: ${researchRequested ? "YES" : "NO"}
 
 ${researchRequested
-  ? `You MUST use browser search before answering.
+  ? backupMode
+    ? "Live research is unavailable in backup mode. Be transparent."
+    : `You MUST use browser search before answering.
 Prioritise relevant ${currentYear} sources, check dates,
 provide direct source URLs and disclose evidence limitations.`
   : "Do not browse automatically for ordinary conversation. Answer naturally."}
@@ -273,6 +278,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
+    const openRouterApiKey = Deno.env.get("OPENROUTER_API_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey || !groqApiKey) {
       console.error("NYX CORE configuration is incomplete.");
@@ -338,14 +344,12 @@ Deno.serve(async (req) => {
       }, 400);
     }
 
-    // Limit conversation history to control token usage.
     const rawHistory = Array.isArray(body.history)
       ? body.history.filter(isValidHistoryItem)
       : [];
 
     const history = buildLimitedHistory(rawHistory);
 
-    // Identify research and creator preferences.
     const researchPattern =
       /\b(research|web search|live search|search online|search the web|look up|find sources|sources|citations|current|currently|latest|recent|trends|developments|investigate|verify online|competitors|references|fact.?check|discover|what is happening|industry news|market research|statistics|studies|evidence|compare .* sources)\b/i;
 
@@ -360,7 +364,6 @@ Deno.serve(async (req) => {
     const currentDate = new Date().toISOString().slice(0, 10);
     const currentYear = currentDate.slice(0, 4);
 
-    // Read a smaller selection of shared memories.
     let savedMemories: any[] = [];
     let memoryReadError: string | null = null;
 
@@ -391,14 +394,16 @@ Deno.serve(async (req) => {
       researchRequested,
     );
 
-    // Only attach browser search when research is requested.
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...history,
+      { role: "user", content: message },
+    ];
+
+    // GROQ IS ALWAYS TRIED FIRST.
     const groqRequest: Record<string, unknown> = {
       model: "openai/gpt-oss-120b",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...history,
-        { role: "user", content: message },
-      ],
+      messages,
       temperature: researchRequested ? 0.4 : 0.75,
       max_completion_tokens: researchRequested ? 3072 : 1800,
       reasoning_effort: "low",
@@ -410,6 +415,10 @@ Deno.serve(async (req) => {
       ];
       groqRequest.tool_choice = "required";
     }
+
+    let activeProvider = "Groq";
+    let activeModel = "openai/gpt-oss-120b";
+    let result: any;
 
     const groqResponse = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -424,7 +433,84 @@ Deno.serve(async (req) => {
       },
     );
 
-    if (!groqResponse.ok) {
+    if (groqResponse.status === 429) {
+      const groqError = await groqResponse.text();
+
+      console.warn(
+        "Groq rate limit reached. Trying free OpenRouter backup.",
+        groqError.slice(0, 1000),
+      );
+
+      if (!openRouterApiKey) {
+        return jsonResponse({
+          error: "Groq's usage limit has been reached and the OpenRouter backup key is not configured.",
+          code: "BACKUP_NOT_CONFIGURED",
+          provider: "Groq",
+          rateLimited: true,
+        }, 429);
+      }
+
+      // Backup prompt explicitly disables claims of live research.
+      const backupSystemPrompt = createSystemPrompt(
+        studioName,
+        currentDate,
+        currentYear,
+        memoryContext,
+        researchRequested,
+        true,
+      );
+
+      const backupMessages = [
+        { role: "system", content: backupSystemPrompt },
+        ...history,
+        { role: "user", content: message },
+      ];
+
+      // FREE ROUTER ONLY. No paid model fallbacks.
+      const openRouterResponse = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openRouterApiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://nyx-creative--universe.pages.dev/",
+            "X-Title": "NYX Creative Universe",
+          },
+          body: JSON.stringify({
+            model: "openrouter/free",
+            messages: backupMessages,
+            max_tokens: researchRequested ? 1800 : 1400,
+          }),
+          signal: AbortSignal.timeout(90000),
+        },
+      );
+
+      if (!openRouterResponse.ok) {
+        const backupError = await openRouterResponse.text();
+
+        console.error(
+          "OpenRouter free backup error:",
+          openRouterResponse.status,
+          backupError.slice(0, 1500),
+        );
+
+        return jsonResponse({
+          error: "Groq is rate limited and the free OpenRouter backup is currently unavailable. Please try again later.",
+          code: "BOTH_PROVIDERS_UNAVAILABLE",
+          provider: "OpenRouter",
+          groqRateLimited: true,
+          backupStatus: openRouterResponse.status,
+        }, 503);
+      }
+
+      result = await openRouterResponse.json();
+      activeProvider = "OpenRouter";
+      activeModel = result.model ?? "openrouter/free";
+
+      console.log("NYX is responding through free OpenRouter backup.");
+
+    } else if (!groqResponse.ok) {
       const errorText = await groqResponse.text();
 
       console.error(
@@ -433,35 +519,28 @@ Deno.serve(async (req) => {
         errorText.slice(0, 1500),
       );
 
-      // Give rate-limit errors their own response.
-      if (groqResponse.status === 429) {
-        return jsonResponse({
-          error: "NYX has temporarily reached Groq's usage limit. Please try again later.",
-          code: "GROQ_RATE_LIMITED",
-          provider: "Groq",
-          rateLimited: true,
-        }, 429);
-      }
-
       return jsonResponse({
         error: "NYX CORE could not get a response from Groq.",
         provider: "Groq",
         status: groqResponse.status,
       }, 502);
+
+    } else {
+      result = await groqResponse.json();
     }
 
-    const result = await groqResponse.json();
-    const groqMessage = result.choices?.[0]?.message;
-    const response = groqMessage?.content;
+    const aiMessage = result.choices?.[0]?.message;
+    const response = aiMessage?.content;
 
     if (typeof response !== "string" || !response.trim()) {
       console.error(
-        "Groq returned an empty response:",
+        `${activeProvider} returned an empty response:`,
         JSON.stringify(result).slice(0, 2000),
       );
 
       return jsonResponse({
-        error: "Groq returned an empty response. Please try again.",
+        error: `${activeProvider} returned an empty response. Please try again.`,
+        provider: activeProvider,
       }, 502);
     }
 
@@ -469,11 +548,12 @@ Deno.serve(async (req) => {
       ? cleanResearchText(response)
       : decodeHtmlEntities(response).trim();
 
-    const sources = researchRequested
-      ? extractSources(finalResponse)
-      : [];
+    // Backup mode does not claim live research or verified sources.
+    const sources =
+      researchRequested && activeProvider === "Groq"
+        ? extractSources(finalResponse)
+        : [];
 
-    // Save useful context, with smaller stored records.
     const isGreeting =
       /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you)[!. ]*$/i
         .test(message);
@@ -502,6 +582,7 @@ Deno.serve(async (req) => {
         research_requested: researchRequested,
         sources: sources.slice(0, 10),
         studio: studioName,
+        provider: activeProvider,
         saved_by: "NYX CORE",
       };
 
@@ -518,9 +599,10 @@ Deno.serve(async (req) => {
             memory_type: memoryType,
             title: memoryTitle,
             content: memoryContent,
-            researched_at: researchRequested
-              ? new Date().toISOString()
-              : null,
+            researched_at:
+              researchRequested && activeProvider === "Groq"
+                ? new Date().toISOString()
+                : null,
             updated_at: new Date().toISOString(),
           });
 
@@ -539,10 +621,11 @@ Deno.serve(async (req) => {
     return jsonResponse({
       response: finalResponse,
       sources,
-      provider: "Groq",
+      provider: activeProvider,
+      model: activeModel,
       core: "NYX CORE",
       studio: studioName,
-      researchAvailable: true,
+      researchAvailable: activeProvider === "Groq",
       researchRequested,
       researchDate: currentDate,
       memoryAvailable: memoryReadError === null,
