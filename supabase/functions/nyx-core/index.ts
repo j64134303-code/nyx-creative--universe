@@ -1,3 +1,4 @@
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -22,12 +23,20 @@ function decodeHtmlEntities(value: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (_, code) =>
-      String.fromCodePoint(Number(code))
-    )
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCodePoint(parseInt(code, 16))
-    );
+    .replace(/&#(\d+);/g, (_, code) => {
+      try {
+        return String.fromCodePoint(Number(code));
+      } catch {
+        return _;
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+      try {
+        return String.fromCodePoint(parseInt(code, 16));
+      } catch {
+        return match;
+      }
+    });
 }
 
 function cleanResearchText(value: string): string {
@@ -39,15 +48,82 @@ function cleanResearchText(value: string): string {
     .trim();
 }
 
-function extractSources(value: string) {
-  const matches =
-    value.match(/https?:\/\/[^\s<>"')\]]+/gi) ?? [];
+function removeModelWrittenSources(value: string): string {
+  return value
+    .replace(
+      /\n\s*(?:#{1,3}\s*)?(?:\*\*)?SOURCES?(?:\*\*)?\s*:?\s*[\s\S]*$/i,
+      "",
+    )
+    .trim();
+}
 
-  const unique = [...new Set(
-    matches.map((url) => url.replace(/[.,;!?]+$/, ""))
-  )];
+function extractBrowserSources(aiMessage: any) {
+  const executedTools = Array.isArray(aiMessage?.executed_tools)
+    ? aiMessage.executed_tools
+    : [];
 
-  return unique.map((url) => ({ url }));
+  const browserResults = executedTools.flatMap((tool: any) =>
+    Array.isArray(tool?.browser_results) ? tool.browser_results : []
+  );
+
+  const seen = new Set<string>();
+  const sources: {
+    title: string;
+    publisher: string;
+    url: string;
+  }[] = [];
+
+  for (const item of browserResults) {
+    if (typeof item?.url !== "string") continue;
+
+    try {
+      const parsed = new URL(item.url);
+
+      if (!["http:", "https:"].includes(parsed.protocol)) continue;
+
+      const url = parsed.toString();
+
+      if (seen.has(url)) continue;
+      seen.add(url);
+
+      const publisher = parsed.hostname
+        .replace(/^www\./i, "");
+
+      const title =
+        typeof item.title === "string" && item.title.trim()
+          ? item.title.trim().slice(0, 250)
+          : publisher;
+
+      sources.push({
+        title,
+        publisher,
+        url,
+      });
+
+      if (sources.length >= 8) break;
+    } catch {
+      continue;
+    }
+  }
+
+  return sources;
+}
+
+function appendVerifiedSources(
+  response: string,
+  sources: { title: string; publisher: string; url: string }[],
+) {
+  const cleaned = removeModelWrittenSources(response);
+
+  if (!sources.length) {
+    return `${cleaned}\n\n**Source verification:** Groq did not return usable browser source links for this response. Treat specific current claims and statistics as unverified until checked.`;
+  }
+
+  const sourceList = sources.map((source, index) =>
+    `${index + 1}. [${source.title}](${source.url}) — ${source.publisher}`
+  ).join("\n");
+
+  return `${cleaned}\n\n**Sources checked by NYX**\n${sourceList}`;
 }
 
 function isValidHistoryItem(item: any) {
@@ -67,7 +143,7 @@ function buildLimitedHistory(history: any[]) {
 
     const content = item.content.slice(
       0,
-      Math.min(1800, remaining)
+      Math.min(1800, remaining),
     );
 
     if (!content.trim()) continue;
@@ -181,36 +257,44 @@ For requests requiring current research, explain that live research
 is temporarily unavailable while the primary provider is rate limited.
 You may still help with general knowledge, clearly labelled as such.`
   : `For explicit research requests:
-- Use browser search.
-- Aim for at least three independent, useful sources when possible.
+- Use the browser_search tool.
 - Prefer original research, official sources, industry organisations,
-  recognised publications and academic or institutional material.
-- Compare evidence where useful.
-- Separate verified facts, predictions and creative interpretation.
-- Never invent evidence to reach a source count.`}
+  academic institutions and recognised publications.
+- Use multiple independent sources when possible.
+- Do not treat several articles repeating one report as independent evidence.
+- Check the publication date and the period the data actually covers.
+- For every statistic, identify what is being measured, the population,
+  sample or denominator, and the relevant time period when available.
+- Never turn a percentage of surveyed professionals into a percentage
+  of all professionals or consumers.
+- Distinguish correlation, estimates, forecasts and confirmed results.
+- Compare conflicting figures and explain differences in methodology.
+- Do not invent missing details to make a finding sound certain.
+- If evidence is weak, say so plainly.
+- Do not claim that a source supports a statement unless its content does.`}
 
 SOURCE HONESTY
-Provide real, direct HTTP or HTTPS source URLs when available.
-Identify source titles, publishers and publication dates where possible.
-Never invent citations, URLs, quotations or publication dates.
-Never claim a source was checked if it was not.
-If research fails, disclose that honestly.
-
-Place sources at the end under SOURCES.
-Use numbered entries with title, publisher, date and direct URL.
-Do not output citation placeholders or fabricated links.
+Only cite sources actually returned by the browser search.
+Never invent citations, URLs, quotations, publishers or publication dates.
+Do not rely on a URL merely because it looks plausible.
+If the browser does not return usable source links, disclose that.
+Do not present unsupported statistics as verified facts.
 
 RESEARCH PRESENTATION
 Make answers easy to read on a phone.
 Use simple headings, numbered findings and short paragraphs.
 Do not use Markdown tables.
-Do not output escaped Markdown symbols or HTML entities.
+Use ordinary Markdown formatting, not escaped Markdown symbols.
+Do not output HTML entities.
+Do not write your own fabricated SOURCES list.
+Actual browser source links will be attached by NYX after your answer.
 
 For each research finding, explain:
 - What is changing.
 - Why it matters.
 - Evidence or examples.
 - Practical relevance.
+- Any important uncertainty or limitation.
 
 CREATIVE MEMORY
 Relevant saved memories are provided below.
@@ -259,8 +343,11 @@ ${researchRequested
   ? backupMode
     ? "Live research is unavailable in backup mode. Be transparent."
     : `You MUST use browser search before answering.
-Prioritise relevant ${currentYear} sources, check dates,
-provide direct source URLs and disclose evidence limitations.`
+Use the returned evidence, not memory alone.
+Prioritise relevant ${currentYear} sources and check dates.
+Be precise about what each statistic measures.
+If a claim cannot be supported, omit it or label it unverified.
+Do not invent a source list; NYX will attach actual browser sources.`
   : "Do not browse automatically for ordinary conversation. Answer naturally."}
 `;
 }
@@ -450,7 +537,6 @@ Deno.serve(async (req) => {
         }, 429);
       }
 
-      // Backup prompt explicitly disables claims of live research.
       const backupSystemPrompt = createSystemPrompt(
         studioName,
         currentDate,
@@ -544,15 +630,19 @@ Deno.serve(async (req) => {
       }, 502);
     }
 
-    const finalResponse = researchRequested
+    let finalResponse = researchRequested
       ? cleanResearchText(response)
       : decodeHtmlEntities(response).trim();
 
-    // Backup mode does not claim live research or verified sources.
+    // Only actual URLs returned by Groq's browser tool become sources.
     const sources =
       researchRequested && activeProvider === "Groq"
-        ? extractSources(finalResponse)
+        ? extractBrowserSources(aiMessage)
         : [];
+
+    if (researchRequested && activeProvider === "Groq") {
+      finalResponse = appendVerifiedSources(finalResponse, sources);
+    }
 
     const isGreeting =
       /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you)[!. ]*$/i
@@ -583,6 +673,7 @@ Deno.serve(async (req) => {
         sources: sources.slice(0, 10),
         studio: studioName,
         provider: activeProvider,
+        research_verified: sources.length > 0,
         saved_by: "NYX CORE",
       };
 
@@ -600,7 +691,9 @@ Deno.serve(async (req) => {
             title: memoryTitle,
             content: memoryContent,
             researched_at:
-              researchRequested && activeProvider === "Groq"
+              researchRequested &&
+              activeProvider === "Groq" &&
+              sources.length > 0
                 ? new Date().toISOString()
                 : null,
             updated_at: new Date().toISOString(),
@@ -627,6 +720,10 @@ Deno.serve(async (req) => {
       studio: studioName,
       researchAvailable: activeProvider === "Groq",
       researchRequested,
+      researchVerified:
+        researchRequested &&
+        activeProvider === "Groq" &&
+        sources.length > 0,
       researchDate: currentDate,
       memoryAvailable: memoryReadError === null,
       memorySaved,
