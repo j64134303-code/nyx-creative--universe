@@ -1,0 +1,29 @@
+
+name: Deploy NYX CORE
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/nyx-core/**'
+      - '.github/workflows/deploy-nyx-core.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy NYX CORE
+        run: supabase functions deploy nyx-core --project-ref wjlhqrzaihtsuhuyqcau --yes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
