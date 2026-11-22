@@ -1839,3 +1839,227 @@ p { color: var(--muted); line-height: 1.7; }
 .nyx-empty-chat p {
   color: #a99bbd !important;
 }
+
+/* =====================================
+   NYX CUTE CHAT — NEW CHAT DESIGN
+===================================== */
+
+.nyx-chat-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0 !important;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 20%, #21152f 0%, #0b0712 65%);
+}
+
+.nyx-chat-topbar {
+  flex-shrink: 0;
+  padding: 10px 15px;
+  background: rgba(11, 7, 18, .96);
+  border-bottom: 1px solid rgba(192, 132, 252, .15);
+}
+
+.nyx-chat-main.nyx-clean-chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  min-height: 0;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.nyx-clean-chat .nyx-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 17px;
+  width: 100%;
+  max-height: none;
+  min-height: 0;
+  padding: 22px clamp(14px, 4vw, 30px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Alternating message positions */
+
+.nyx-clean-chat .nyx-message-row {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  animation: nyx-message-appear .25s ease;
+}
+
+.nyx-clean-chat .nyx-message-user {
+  justify-content: flex-end;
+}
+
+.nyx-clean-chat .nyx-message-assistant {
+  justify-content: flex-start;
+}
+
+.nyx-clean-chat .nyx-message-bubble {
+  width: fit-content;
+  max-width: min(82%, 470px);
+  padding: 12px 16px;
+  border: 1px solid rgba(196, 162, 255, .14);
+  border-radius: 19px;
+  color: #f8f1ff;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .13);
+}
+
+/* NYX messages — left */
+
+.nyx-clean-chat .nyx-message-assistant .nyx-message-bubble {
+  border-bottom-left-radius: 5px;
+  background: linear-gradient(145deg, #251833, #191123);
+}
+
+/* Your messages — right */
+
+.nyx-clean-chat .nyx-message-user .nyx-message-bubble {
+  border-color: rgba(192, 132, 252, .3);
+  border-bottom-right-radius: 5px;
+  background: linear-gradient(145deg, #7543a5, #523276);
+  color: #fff;
+}
+
+/* Message text */
+
+.nyx-clean-chat .nyx-message-bubble p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.65;
+}
+
+.nyx-clean-chat .nyx-message-bubble small {
+  display: block;
+  margin-top: 7px;
+  color: rgba(255, 255, 255, .55);
+  font-size: 9px;
+  text-align: right;
+}
+
+/* Typing indicator */
+
+.nyx-clean-chat .nyx-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #d8b4fe;
+}
+
+.nyx-clean-chat .nyx-typing-bubble::after {
+  width: 18px;
+  height: 5px;
+  content: "";
+  border-radius: 10px;
+  background: #c084fc;
+  animation: nyx-typing 1s infinite ease-in-out;
+}
+
+/* Composer */
+
+.nyx-chat-screen .nyx-composer {
+  width: min(100%, 700px);
+  margin: 0 auto;
+  padding: 9px;
+  border: 1px solid rgba(192, 132, 252, .24);
+  border-radius: 23px;
+  background: #171020;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .2);
+}
+
+.nyx-chat-screen .nyx-composer textarea {
+  min-height: 42px;
+  max-height: 120px;
+  padding: 11px;
+  color: #f5efff;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.nyx-chat-screen .nyx-composer textarea::placeholder {
+  color: #9583a7;
+}
+
+.nyx-chat-screen .nyx-composer > button {
+  width: 43px;
+  height: 43px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #bd83f7, #7844b4);
+  color: white;
+  box-shadow: 0 4px 14px rgba(155, 104, 237, .2);
+}
+
+.nyx-chat-screen .nyx-composer > button:disabled {
+  opacity: .4;
+}
+
+.nyx-chat-screen .nyx-composer-area {
+  flex-shrink: 0;
+  padding: 12px 15px calc(15px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(192, 132, 252, .12);
+  background: rgba(11, 7, 18, .96);
+}
+
+/* Empty conversation */
+
+.nyx-chat-screen .nyx-empty-chat {
+  flex: 1;
+  min-height: 0;
+  margin: 20px 0;
+  border: 0;
+  background: transparent !important;
+}
+
+/* Smooth appearance */
+
+@keyframes nyx-message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nyx-typing {
+  0%, 100% { opacity: .35; transform: scaleX(.7); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+/* Small screens */
+
+@media (max-width: 600px) {
+  .nyx-chat-screen .nyx-messages {
+    padding: 18px 13px;
+    gap: 15px;
+  }
+
+  .nyx-clean-chat .nyx-message-bubble {
+    max-width: 86%;
+    padding: 11px 14px;
+    font-size: 13px;
+    border-radius: 17px;
+  }
+
+  .nyx-chat-screen .nyx-composer-area {
+    padding: 10px 11px calc(12px + env(safe-area-inset-bottom));
+  }
+}
