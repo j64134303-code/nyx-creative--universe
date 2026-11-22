@@ -2063,3 +2063,507 @@ p { color: var(--muted); line-height: 1.7; }
     padding: 10px 11px calc(12px + env(safe-area-inset-bottom));
   }
 }
+/* ==================================
+   NYX CHAT — NEW DESIGN
+================================== */
+
+.nyx-chat-screen {
+  min-height: 100dvh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(124, 58, 237, 0.13), transparent 48%),
+    #0b0712;
+  color: #f5efff;
+}
+
+.nyx-chat-header {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background: rgba(15, 10, 24, 0.94);
+  flex-shrink: 0;
+}
+
+.nyx-chat-back,
+.nyx-chat-search-button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.045);
+  color: #eee5ff;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.nyx-chat-back:hover,
+.nyx-chat-search-button:hover,
+.nyx-chat-search-button.selected {
+  background: rgba(139,92,246,0.2);
+  border-color: rgba(167,139,250,0.5);
+}
+
+.nyx-chat-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+}
+
+.nyx-chat-studio-icon {
+  width: 41px;
+  height: 41px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.06);
+}
+
+.nyx-chat-heading strong,
+.nyx-chat-heading small {
+  display: block;
+}
+
+.nyx-chat-heading strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nyx-chat-heading small {
+  color: #a89bbd;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.nyx-online-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 9px rgba(74,222,128,0.7);
+}
+
+.nyx-chat-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nyx-chat-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 15px 0;
+  padding: 11px 14px;
+  border: 1px solid rgba(167,139,250,0.25);
+  border-radius: 15px;
+  background: #171020;
+  color: #bca9dc;
+  flex-shrink: 0;
+}
+
+.nyx-chat-search-bar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.nyx-chat-search-bar button {
+  border: 0;
+  background: transparent;
+  color: #c4b5fd;
+  cursor: pointer;
+}
+
+.nyx-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 15px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  scroll-behavior: smooth;
+}
+
+.nyx-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nyx-messages::-webkit-scrollbar-thumb {
+  background: rgba(167,139,250,0.25);
+  border-radius: 10px;
+}
+
+.nyx-messages-empty {
+  justify-content: center;
+}
+
+.nyx-chat-welcome {
+  width: 100%;
+  max-width: 460px;
+  margin: auto;
+  text-align: center;
+  padding: 18px 5px 25px;
+  animation: nyxWelcomeIn 0.45s ease both;
+}
+
+@keyframes nyxWelcomeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nyx-welcome-orb {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 18px;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  color: #e9d5ff;
+  background: linear-gradient(145deg, #8b5cf6, #4c1d95);
+  box-shadow: 0 10px 35px rgba(124,58,237,0.3);
+}
+
+.nyx-welcome-eyebrow {
+  color: #b49bdc;
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  font-weight: 700;
+}
+
+.nyx-chat-welcome h1 {
+  max-width: 370px;
+  margin: 13px auto 10px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(25px, 6vw, 35px);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.nyx-chat-welcome h1 span {
+  color: #c4a5fd;
+}
+
+.nyx-chat-welcome > p {
+  max-width: 320px;
+  margin: 0 auto 25px;
+  color: #a99bb9;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.nyx-prompt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+}
+
+.nyx-prompt-list button {
+  width: 100%;
+  min-height: 49px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(196,165,253,0.15);
+  border-radius: 15px;
+  background: rgba(255,255,255,0.035);
+  color: #e9ddfa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  transition: 0.2s ease;
+}
+
+.nyx-prompt-list button:hover {
+  background: rgba(139,92,246,0.14);
+  border-color: rgba(196,165,253,0.4);
+  transform: translateY(-1px);
+}
+
+.nyx-prompt-list button svg:first-child {
+  color: #c4a5fd;
+  flex-shrink: 0;
+}
+
+.nyx-prompt-list button span {
+  flex: 1;
+}
+
+.nyx-prompt-list button svg:last-child {
+  color: #88799e;
+}
+
+.nyx-message-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.nyx-message-user {
+  justify-content: flex-end;
+}
+
+.nyx-message-assistant {
+  justify-content: flex-start;
+}
+
+.nyx-message-avatar {
+  width: 29px;
+  height: 29px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #e9d5ff;
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+}
+
+.nyx-message-bubble {
+  max-width: min(82%, 520px);
+  padding: 12px 14px 8px;
+  border-radius: 18px;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.nyx-message-bubble p {
+  margin: 0 0 7px;
+  white-space: pre-wrap;
+}
+
+.nyx-message-user .nyx-message-bubble {
+  color: #fff;
+  background: linear-gradient(145deg, #7545c9, #55309b);
+  border-bottom-right-radius: 5px;
+}
+
+.nyx-message-assistant .nyx-message-bubble {
+  color: #eee6f8;
+  background: #1b1424;
+  border: 1px solid rgba(255,255,255,0.065);
+  border-bottom-left-radius: 5px;
+}
+
+.nyx-message-bubble small {
+  display: block;
+  margin-top: 5px;
+  color: rgba(225,213,244,0.52);
+  font-size: 9px;
+  text-align: right;
+}
+
+.nyx-message-bubble mark {
+  padding: 1px 3px;
+  border-radius: 4px;
+  color: #1b1029;
+  background: #facc15;
+}
+
+.nyx-message-attachment {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.07);
+  font-size: 11px;
+}
+
+.nyx-message-bubble a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c4b5fd;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.nyx-audio-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nyx-audio-message audio {
+  width: 100%;
+  max-width: 230px;
+}
+
+.nyx-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nyx-typing-bubble small {
+  margin: 0;
+  text-align: left;
+}
+
+.nyx-typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.nyx-typing-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c4a5fd;
+  animation: nyxDot 1s infinite ease-in-out;
+}
+
+.nyx-typing-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.nyx-typing-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes nyxDot {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.nyx-no-search-results {
+  margin: auto;
+  text-align: center;
+  color: #a99bb9;
+  font-size: 13px;
+}
+
+.nyx-composer-area {
+  padding: 10px 13px max(10px, env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, #0b0712 17%);
+  flex-shrink: 0;
+}
+
+.nyx-composer {
+  max-width: 760px;
+  margin: 0 auto;
+  min-height: 53px;
+  padding: 7px 8px 7px 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(196,165,253,0.23);
+  border-radius: 19px;
+  background: #1a1323;
+  box-shadow: 0 7px 28px rgba(0,0,0,0.22);
+}
+
+.nyx-composer:focus-within {
+  border-color: rgba(196,165,253,0.65);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.1);
+}
+
+.nyx-composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 25px;
+  max-height: 115px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nyx-composer textarea::placeholder {
+  color: #887b99;
+}
+
+.nyx-composer button {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(145deg, #a78bfa, #7c3aed);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.nyx-composer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.nyx-composer button:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.nyx-composer-note {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  color: #786b89;
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+
+@media (min-width: 700px) {
+  .nyx-chat-header {
+    padding-left: max(22px, calc((100% - 900px) / 2));
+    padding-right: max(22px, calc((100% - 900px) / 2));
+  }
+
+  .nyx-messages {
+    width: 100%;
+    max-width: 850px;
+    margin: 0 auto;
+    padding-left: 25px;
+    padding-right: 25px;
+  }
+
+  .nyx-composer-area {
+    padding-left: 25px;
+    padding-right: 25px;
+  }
+}
