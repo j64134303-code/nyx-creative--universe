@@ -15,6 +15,107 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#(\d+);/g, (_, code) =>
+      String.fromCodePoint(Number(code))
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCodePoint(parseInt(code, 16))
+    );
+}
+
+function cleanResearchText(value: string): string {
+  let text = decodeHtmlEntities(value);
+
+  text = text
+    .replace(/\\([*_~`|#])/g, "$1")
+    .replace(/\*\*(.*?)\*\*/gs, "$1")
+    .replace(/__(.*?)__/gs, "$1")
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
+    .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const lines = text.split("\n");
+  const output: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (!line.includes("|")) {
+      output.push(line);
+      continue;
+    }
+
+    const cells = line
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter(Boolean);
+
+    if (
+      cells.length &&
+      cells.every((cell) => /^:?-{2,}:?$/.test(cell))
+    ) {
+      continue;
+    }
+
+    if (
+      cells.length >= 2 &&
+      /trend/i.test(cells[0]) &&
+      /source/i.test(cells[cells.length - 1])
+    ) {
+      output.push("");
+      output.push("RESEARCH FINDINGS");
+      continue;
+    }
+
+    if (cells.length >= 2) {
+      const previous = lines[i - 1] || "";
+      const previousCells = previous
+        .split("|")
+        .map((cell) => cell.trim())
+        .filter(Boolean);
+
+      if (
+        previousCells.length === cells.length &&
+        /trend/i.test(previousCells[0])
+      ) {
+        const labels = previousCells;
+        for (let j = 0; j < cells.length; j++) {
+          output.push(`${labels[j]}: ${cells[j]}`);
+        }
+        output.push("");
+        continue;
+      }
+    }
+
+    output.push(cells.join(" — "));
+  }
+
+  return output
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractSources(value: string) {
+  const matches = value.match(/https?:\/\/[^\s<>"')\]]+/gi) ?? [];
+  const unique = [...new Set(matches)];
+
+  return unique.map((url) => ({
+    url: url.replace(/[.,;!?]+$/, ""),
+  }));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -31,7 +132,6 @@ Deno.serve(async (req) => {
 
     if (!supabaseUrl || !supabaseAnonKey || !groqApiKey) {
       console.error("NYX CORE configuration is incomplete.");
-
       return jsonResponse({
         error: "NYX CORE configuration is incomplete.",
       }, 500);
@@ -283,13 +383,45 @@ When live research is performed:
 
 - Identify source titles and publishers where available.
 - Include publication dates where available.
-- Include clickable source links where available.
-- Prioritise original and authoritative sources.
+- Include actual, complete, clickable source URLs.
+- Prefer original and authoritative sources.
 - Compare sources when useful.
 - Distinguish verified findings from interpretation.
-- Explain how findings affect the creative project.
 - Do not invent citations, links, dates or quotations.
 - Never describe old information as a recent discovery.
+
+IMPORTANT SOURCE LINK RULES:
+
+Do not output citation placeholders such as:
+【1†L44-L51】
+〖2†L10-L20〗
+or similar reference markers.
+
+For every source you cite, provide its actual direct
+HTTP or HTTPS URL in full.
+
+Write source links as plain URLs, not shortened names
+and not hidden behind citation markers.
+
+Use this format:
+
+SOURCES
+
+1. Source title — Publisher — publication date
+   https://actual-source-url
+
+2. Source title — Publisher — publication date
+   https://actual-source-url
+
+Only provide URLs that you can identify from the
+research results or confidently verify.
+
+Never manufacture a URL to make the answer look complete.
+
+If a source's direct URL is unavailable, say that
+the source link could not be verified.
+
+Do not cite a source you did not use.
 
 If research fails, say so.
 
@@ -303,6 +435,30 @@ Information already known by the model.
 
 CREATIVE INTERPRETATION:
 Original ideas developed using research and knowledge.
+
+# RESEARCH PRESENTATION
+
+Make research easy to read on a phone.
+
+Do not use Markdown tables.
+
+Do not use complicated table layouts.
+
+Do not use escaped Markdown symbols.
+
+Do not output HTML entities such as &amp; or &lt;.
+
+Use simple text headings and numbered findings.
+
+For each finding, explain:
+- What it is.
+- Why it is growing or matters.
+- Evidence or examples.
+- Its practical relevance.
+
+Place the SOURCES section at the end.
+
+Use short paragraphs and clear spacing.
 
 # PERSISTENT CREATIVE MEMORY
 
@@ -488,9 +644,6 @@ Explicit research requested: ${researchRequested ? "YES" : "NO"}
 
 Browser research is available. For explicit research
 requests, use it before answering.
-
-When current information matters, use it even if the
-creator did not use the word "research".
 `;
 
     // 5. CALL GROQ WITH BROWSER SEARCH AVAILABLE
@@ -542,9 +695,8 @@ creator did not use the word "research".
     }
 
     const result = await groqResponse.json();
-
-    const response =
-      result.choices?.[0]?.message?.content;
+    const groqMessage = result.choices?.[0]?.message;
+    const response = groqMessage?.content;
 
     if (typeof response !== "string" || !response.trim()) {
       console.error(
@@ -557,7 +709,13 @@ creator did not use the word "research".
       }, 502);
     }
 
-    const finalResponse = response.trim();
+    const finalResponse = researchRequested
+      ? cleanResearchText(response)
+      : decodeHtmlEntities(response).trim();
+
+    const sources = researchRequested
+      ? extractSources(finalResponse)
+      : [];
 
     // 6. SAVE USEFUL CONVERSATION CONTEXT
 
@@ -587,6 +745,7 @@ creator did not use the word "research".
         user_message: message.slice(0, 8000),
         assistant_response: finalResponse.slice(0, 12000),
         research_requested: researchRequested,
+        sources,
         studio: studioName,
         saved_by: "NYX CORE",
       };
@@ -626,6 +785,7 @@ creator did not use the word "research".
 
     return jsonResponse({
       response: finalResponse,
+      sources,
       provider: "Groq",
       core: "NYX CORE",
       studio: studioName,
