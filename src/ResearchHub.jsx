@@ -10,8 +10,10 @@ import {
   FolderOpen,
   Sparkles,
   ExternalLink,
-  X
+  X,
+  LoaderCircle
 } from "lucide-react";
+import { supabase } from "./lib/supabase";
 
 const STORAGE_KEY = "nyx-research-conversations-v2";
 
@@ -35,6 +37,108 @@ function getStudioName(studio) {
   return studio.name || studio.title || "Research & Discovery";
 }
 
+function extractLinks(content = "") {
+  const links = [];
+  const markdownLinkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  const plainUrlPattern = /https?:\/\/[^\s<>)\]]+/g;
+
+  let match;
+
+  while ((match = markdownLinkPattern.exec(content)) !== null) {
+    links.push({
+      title: match[1].trim(),
+      url: match[2].replace(/[.,;!?]+$/, "")
+    });
+  }
+
+  while ((match = plainUrlPattern.exec(content)) !== null) {
+    const url = match[0].replace(/[.,;!?]+$/, "");
+    if (!links.some(item => item.url === url)) {
+      links.push({ title: url, url });
+    }
+  }
+
+  return links.filter(item => {
+    try {
+      const parsed = new URL(item.url);
+      return parsed.protocol === "https:" || parsed.protocol === "http:";
+    } catch {
+      return false;
+    }
+  });
+}
+
+function renderMessageContent(content = "") {
+  const parts = [];
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)\]]+)/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(
+        <React.Fragment key={`text-${key++}`}>
+          {content.slice(lastIndex, match.index)}
+        </React.Fragment>
+      );
+    }
+
+    const label = match[1] || match[3];
+    const rawUrl = match[2] || match[3];
+    const url = rawUrl.replace(/[.,;!?]+$/, "");
+    const trailing = rawUrl.slice(url.length);
+
+    let safeUrl = null;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+        safeUrl = parsed.href;
+      }
+    } catch {
+      safeUrl = null;
+    }
+
+    if (safeUrl) {
+      parts.push(
+        <React.Fragment key={`link-${key++}`}>
+          <a
+            href={safeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: "#d0a7ff",
+              textDecoration: "underline",
+              overflowWrap: "anywhere"
+            }}
+          >
+            {label}
+          </a>
+          {trailing}
+        </React.Fragment>
+      );
+    } else {
+      parts.push(
+        <React.Fragment key={`plain-${key++}`}>
+          {match[0]}
+        </React.Fragment>
+      );
+    }
+
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(
+      <React.Fragment key={`text-${key++}`}>
+        {content.slice(lastIndex)}
+      </React.Fragment>
+    );
+  }
+
+  return parts;
+}
+
 export default function ResearchHub({ studio, onBack, onAttach }) {
   const studioName = getStudioName(studio);
 
@@ -43,22 +147,19 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
   const [message, setMessage] = useState("");
   const [showSaved, setShowSaved] = useState(false);
   const [notice, setNotice] = useState("");
+  const [isResearching, setIsResearching] = useState(false);
 
   const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const activeConversation =
     conversations.find(item => item.id === activeId) || null;
 
-  const savedConversations = conversations.filter(
-    item => item.saved
-  );
+  const savedConversations = conversations.filter(item => item.saved);
 
   useEffect(() => {
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(conversations)
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
     } catch {
       setNotice("Your device could not save this conversation.");
     }
@@ -69,7 +170,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       behavior: "smooth",
       block: "end"
     });
-  }, [activeConversation?.messages?.length]);
+  }, [activeConversation?.messages?.length, isResearching]);
 
   function startNewChat() {
     setActiveId(null);
@@ -78,62 +179,159 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
     setNotice("");
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     const question = message.trim();
-    if (!question) return;
+    if (!question || isResearching) return;
 
     const existing = activeConversation;
+    const now = new Date().toISOString();
+
     const conversation = existing || {
       id: makeId(),
       title: question.length > 48
-        ? question.slice(0, 48) + "..."
+        ? `${question.slice(0, 48)}...`
         : question,
       studio: studioName,
       saved: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       messages: []
     };
-
-    const searchUrl =
-      "https://www.google.com/search?q=" +
-      encodeURIComponent(question);
 
     const userMessage = {
       id: makeId(),
       role: "user",
       content: question,
-      createdAt: new Date().toISOString()
+      createdAt: now
     };
 
-    const assistantMessage = {
-      id: makeId(),
-      role: "assistant",
-      content:
-        "Your research question is ready. The live NYX research engine is not connected yet, so I cannot produce verified in-app findings at this stage. You can open the search below to explore sources. Once the research engine is connected, NYX will be able to investigate, analyse and organise sourced findings here.",
-      searchUrl,
-      createdAt: new Date().toISOString()
-    };
-
-    const updated = {
+    const updatedConversation = {
       ...conversation,
-      updatedAt: new Date().toISOString(),
-      messages: [
-        ...(conversation.messages || []),
-        userMessage,
-        assistantMessage
-      ]
+      updatedAt: now,
+      messages: [...(conversation.messages || []), userMessage]
     };
 
     setConversations(previous => [
-      updated,
-      ...previous.filter(item => item.id !== updated.id)
+      updatedConversation,
+      ...previous.filter(item => item.id !== updatedConversation.id)
     ]);
-
-    setActiveId(updated.id);
+    setActiveId(updatedConversation.id);
     setMessage("");
     setShowSaved(false);
     setNotice("");
+    setIsResearching(true);
+
+    try {
+      const {
+        data: sessionData,
+        error: sessionError
+      } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("Please sign in again before using NYX Research.");
+      }
+
+      const history = (conversation.messages || [])
+        .filter(item =>
+          item &&
+          ["user", "assistant"].includes(item.role) &&
+          typeof item.content === "string"
+        )
+        .slice(-12)
+        .map(item => ({
+          role: item.role,
+          content: item.content
+        }));
+
+      const { data, error } = await supabase.functions.invoke("nyx-core", {
+        body: {
+          message: question,
+          studioName,
+          history
+        },
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (error) {
+        let details = error.message || "The NYX CORE request failed.";
+
+        if (error.context && typeof error.context.json === "function") {
+          try {
+            const responseBody = await error.context.json();
+            if (responseBody?.error) details = responseBody.error;
+          } catch {
+            // Keep the original function error.
+          }
+        }
+
+        throw new Error(details);
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const answer =
+        typeof data?.response === "string"
+          ? data.response.trim()
+          : "";
+
+      if (!answer) {
+        throw new Error("NYX CORE returned an empty answer. Please try again.");
+      }
+
+      const assistantMessage = {
+        id: makeId(),
+        role: "assistant",
+        content: answer,
+        sources: extractLinks(answer),
+        provider: data.provider || "Groq",
+        core: data.core || "NYX CORE",
+        researchRequested: Boolean(data.researchRequested),
+        createdAt: new Date().toISOString()
+      };
+
+      setConversations(previous =>
+        previous.map(item =>
+          item.id === updatedConversation.id
+            ? {
+                ...item,
+                updatedAt: new Date().toISOString(),
+                messages: [...(item.messages || []), assistantMessage]
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      const errorMessage = {
+        id: makeId(),
+        role: "assistant",
+        content: `I couldn't complete that research request. ${error?.message || "Please try again."}`,
+        isError: true,
+        createdAt: new Date().toISOString()
+      };
+
+      setConversations(previous =>
+        previous.map(item =>
+          item.id === updatedConversation.id
+            ? {
+                ...item,
+                updatedAt: new Date().toISOString(),
+                messages: [...(item.messages || []), errorMessage]
+              }
+            : item
+        )
+      );
+    } finally {
+      setIsResearching(false);
+      textareaRef.current?.focus();
+    }
   }
 
   function toggleSaved() {
@@ -165,10 +363,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       previous.filter(item => item.id !== id)
     );
 
-    if (activeId === id) {
-      setActiveId(null);
-    }
-
+    if (activeId === id) setActiveId(null);
     setNotice("Conversation deleted.");
   }
 
@@ -176,27 +371,35 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
     if (!activeConversation) return;
 
     const references = (activeConversation.messages || [])
-      .filter(item => item.role === "assistant" && item.searchUrl)
-      .map(item => ({
-        id: item.id,
-        title: activeConversation.title,
-        url: item.searchUrl,
-        notes: item.content,
-        category: "Research",
-        rights: "Public viewing only",
-        studio: studioName,
-        type: "research",
-        source: "NYX Research"
-      }));
+      .filter(item => item.role === "assistant" && !item.isError)
+      .flatMap(item => {
+        const links = item.sources?.length
+          ? item.sources
+          : extractLinks(item.content);
+
+        return links.map((source, index) => ({
+          id: `${item.id}-${index}`,
+          title: source.title || activeConversation.title,
+          url: source.url,
+          notes: item.content,
+          category: "Research",
+          rights: "Public viewing only",
+          studio: activeConversation.studio || studioName,
+          type: "research",
+          source: "NYX Research"
+        }));
+      });
 
     if (!references.length) {
-      setNotice("There are no research references to attach yet.");
+      setNotice(
+        "NYX has not returned clickable source links in this conversation yet."
+      );
       return;
     }
 
     if (typeof onAttach === "function") {
       onAttach(references);
-      setNotice("Research sent to your studio project.");
+      setNotice(`${references.length} research source(s) sent to your studio project.`);
     } else {
       setNotice("Your research is saved in this conversation.");
     }
@@ -229,6 +432,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
+      gap: "6px",
       cursor: "pointer"
     },
     panel: {
@@ -247,9 +451,10 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       maxWidth: "88%",
       padding: "13px 15px",
       borderRadius: "16px",
-      lineHeight: 1.6,
+      lineHeight: 1.65,
       fontSize: "14px",
-      overflowWrap: "anywhere"
+      overflowWrap: "anywhere",
+      whiteSpace: "pre-wrap"
     },
     composer: {
       display: "flex",
@@ -300,6 +505,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             <Sparkles size={14} />
             NYX INTELLIGENCE
           </div>
+
           <div style={{
             fontWeight: 700,
             fontSize: "16px",
@@ -307,9 +513,8 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
           }}>
             Research
           </div>
-          <div style={styles.muted}>
-            {studioName}
-          </div>
+
+          <div style={styles.muted}>{studioName}</div>
         </div>
 
         <button
@@ -324,6 +529,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
           style={styles.iconButton}
           onClick={startNewChat}
           aria-label="New research"
+          disabled={isResearching}
         >
           <Plus size={20} />
         </button>
@@ -336,9 +542,15 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             justifyContent: "space-between",
             alignItems: "center"
           }}>
-            <h2 style={{ fontSize: "19px" }}>
+            <h2 style={{
+              fontSize: "19px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px"
+            }}>
               <FolderOpen size={19} /> Saved research
             </h2>
+
             <button
               style={styles.iconButton}
               onClick={() => setShowSaved(false)}
@@ -475,43 +687,85 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                       : "#17141f",
                     border: item.role === "user"
                       ? "1px solid #63418a"
-                      : "1px solid #30283c"
+                      : item.isError
+                        ? "1px solid #8b4545"
+                        : "1px solid #30283c"
                   }}>
                     {item.role === "assistant" && (
                       <div style={{
-                        color: "#c69aff",
+                        color: item.isError ? "#ffaaaa" : "#c69aff",
                         fontSize: "11px",
                         fontWeight: 700,
                         marginBottom: "7px"
                       }}>
-                        NYX RESEARCH
+                        {item.isError ? "NYX NOTICE" : "NYX RESEARCH"}
                       </div>
                     )}
 
-                    {item.content}
+                    {renderMessageContent(item.content)}
 
-                    {item.searchUrl && (
-                      <a
-                        href={item.searchUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "7px",
-                          marginTop: "12px",
-                          color: "#d0a7ff",
-                          textDecoration: "none",
-                          fontWeight: 600
-                        }}
-                      >
-                        <ExternalLink size={15} />
-                        Explore search results
-                      </a>
-                    )}
+                    {item.role === "assistant" &&
+                      item.sources?.length > 0 && (
+                        <div style={{
+                          borderTop: "1px solid #393044",
+                          marginTop: "13px",
+                          paddingTop: "10px"
+                        }}>
+                          <div style={{
+                            color: "#c69aff",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            marginBottom: "8px"
+                          }}>
+                            SOURCES
+                          </div>
+
+                          {item.sources.map((source, index) => (
+                            <a
+                              key={`${item.id}-source-${index}`}
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "7px",
+                                color: "#d0a7ff",
+                                textDecoration: "none",
+                                fontSize: "13px",
+                                marginTop: "7px",
+                                overflowWrap: "anywhere"
+                              }}
+                            >
+                              <ExternalLink
+                                size={14}
+                                style={{
+                                  flexShrink: 0,
+                                  marginTop: "2px"
+                                }}
+                              />
+                              <span>{source.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 </div>
               ))}
+
+              {isResearching && (
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "9px",
+                  color: "#c69aff",
+                  fontSize: "13px",
+                  padding: "10px 4px"
+                }}>
+                  <LoaderCircle size={17} />
+                  NYX is researching...
+                </div>
+              )}
 
               <div ref={bottomRef} />
             </section>
@@ -519,6 +773,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
           <div style={styles.composer}>
             <textarea
+              ref={textareaRef}
               value={message}
               onChange={event => setMessage(event.target.value)}
               onKeyDown={event => {
@@ -534,21 +789,26 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
               placeholder="Ask NYX to research something..."
               style={styles.textarea}
               rows={1}
+              disabled={isResearching}
             />
 
             <button
               onClick={sendMessage}
-              disabled={!message.trim()}
+              disabled={!message.trim() || isResearching}
               style={{
                 ...styles.iconButton,
-                background: message.trim() ? "#8750c9" : "#30283c",
+                background: message.trim() && !isResearching
+                  ? "#8750c9"
+                  : "#30283c",
                 color: "#ffffff",
                 border: "none",
-                opacity: message.trim() ? 1 : 0.5
+                opacity: message.trim() && !isResearching ? 1 : 0.5
               }}
               aria-label="Send research question"
             >
-              <Send size={19} />
+              {isResearching
+                ? <LoaderCircle size={19} />
+                : <Send size={19} />}
             </button>
           </div>
 
@@ -606,7 +866,8 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
               float: "right",
               background: "transparent",
               color: "#ffffff",
-              border: "none"
+              border: "none",
+              cursor: "pointer"
             }}
           >
             ×
