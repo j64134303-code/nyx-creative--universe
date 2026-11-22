@@ -37,24 +37,45 @@ function getStudioName(studio) {
   return studio.name || studio.title || "Research & Discovery";
 }
 
+function decodeEntities(text = "") {
+  return text
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#(\d+);/g, (_, n) =>
+      String.fromCodePoint(Number(n))
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
+      String.fromCodePoint(parseInt(n, 16))
+    );
+}
+
 function extractLinks(content = "") {
   const links = [];
-  const markdownLinkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
-  const plainUrlPattern = /https?:\/\/[^\s<>)\]]+/g;
+  const markdownPattern =
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi;
+  const urlPattern = /https?:\/\/[^\s<>"')\]]+/gi;
 
   let match;
 
-  while ((match = markdownLinkPattern.exec(content)) !== null) {
+  while ((match = markdownPattern.exec(content)) !== null) {
     links.push({
       title: match[1].trim(),
       url: match[2].replace(/[.,;!?]+$/, "")
     });
   }
 
-  while ((match = plainUrlPattern.exec(content)) !== null) {
+  while ((match = urlPattern.exec(content)) !== null) {
     const url = match[0].replace(/[.,;!?]+$/, "");
+
     if (!links.some(item => item.url === url)) {
-      links.push({ title: url, url });
+      links.push({
+        title: getDomainName(url),
+        url
+      });
     }
   }
 
@@ -68,9 +89,149 @@ function extractLinks(content = "") {
   });
 }
 
+function getDomainName(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Research source";
+  }
+}
+
+function combineSources(content, structuredSources = []) {
+  const found = extractLinks(content);
+  const combined = [...found];
+
+  if (Array.isArray(structuredSources)) {
+    structuredSources.forEach(source => {
+      const url =
+        typeof source === "string"
+          ? source
+          : source?.url;
+
+      if (!url || combined.some(item => item.url === url)) return;
+
+      combined.push({
+        title:
+          source?.title ||
+          source?.source_title ||
+          getDomainName(url),
+        url
+      });
+    });
+  }
+
+  return combined;
+}
+
+function cleanResearchText(content = "") {
+  let text = decodeEntities(content);
+
+  text = text
+    .replace(/\\([*_~`|#])/g, "$1")
+    .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
+    .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
+    .replace(/\r\n/g, "\n");
+
+  const lines = text.split("\n");
+  const output = [];
+  let tableHeaders = null;
+
+  for (const originalLine of lines) {
+    const line = originalLine.trim();
+
+    if (!line) {
+      output.push("");
+      tableHeaders = null;
+      continue;
+    }
+
+    if (line.includes("|")) {
+      const cells = line
+        .split("|")
+        .map(cell => cell.trim())
+        .filter(Boolean);
+
+      const isSeparator =
+        cells.length > 0 &&
+        cells.every(cell => /^:?-{2,}:?$/.test(cell));
+
+      if (isSeparator) continue;
+
+      const isHeader =
+        cells.some(cell =>
+          /^(trend|number|#|source|topic|finding|category)$/i.test(cell)
+        ) ||
+        (cells.length >= 3 && !tableHeaders);
+
+      if (isHeader) {
+        tableHeaders = cells;
+        continue;
+      }
+
+      if (tableHeaders) {
+        output.push("");
+
+        cells.forEach((cell, index) => {
+          const label = tableHeaders[index] || `Detail ${index + 1}`;
+          output.push(`${label}: ${cell}`);
+        });
+
+        output.push("");
+        continue;
+      }
+
+      output.push(cells.join(" — "));
+      continue;
+    }
+
+    tableHeaders = null;
+
+    output.push(
+      line
+        .replace(/^#{1,6}\s*/, "")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/__(.*?)__/g, "$1")
+        .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
+        .replace(/~~(.*?)~~/g, "$1")
+    );
+  }
+
+  return output
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function removeSourceSection(content = "") {
+  return content
+    .replace(/\n\s*SOURCES\s*\n[\s\S]*$/i, "")
+    .trim();
+}
+
+function removeRawUrls(content = "") {
+  return content
+    .replace(/https?:\/\/[^\s<>"')\]]+/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function prepareAnswer(rawAnswer, structuredSources) {
+  const decoded = decodeEntities(rawAnswer);
+  const sources = combineSources(decoded, structuredSources);
+
+  let content = removeSourceSection(decoded);
+  content = removeRawUrls(content);
+  content = cleanResearchText(content);
+
+  return { content, sources };
+}
+
 function renderMessageContent(content = "") {
   const parts = [];
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)\]]+)/g;
+  const pattern =
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)\]]+)/g;
+
   let lastIndex = 0;
   let match;
   let key = 0;
@@ -87,23 +248,15 @@ function renderMessageContent(content = "") {
     const label = match[1] || match[3];
     const rawUrl = match[2] || match[3];
     const url = rawUrl.replace(/[.,;!?]+$/, "");
-    const trailing = rawUrl.slice(url.length);
 
-    let safeUrl = null;
     try {
       const parsed = new URL(url);
-      if (parsed.protocol === "https:" || parsed.protocol === "http:") {
-        safeUrl = parsed.href;
-      }
-    } catch {
-      safeUrl = null;
-    }
 
-    if (safeUrl) {
-      parts.push(
-        <React.Fragment key={`link-${key++}`}>
+      if (["https:", "http:"].includes(parsed.protocol)) {
+        parts.push(
           <a
-            href={safeUrl}
+            key={`link-${key++}`}
+            href={parsed.href}
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -114,15 +267,12 @@ function renderMessageContent(content = "") {
           >
             {label}
           </a>
-          {trailing}
-        </React.Fragment>
-      );
-    } else {
-      parts.push(
-        <React.Fragment key={`plain-${key++}`}>
-          {match[0]}
-        </React.Fragment>
-      );
+        );
+      } else {
+        parts.push(match[0]);
+      }
+    } catch {
+      parts.push(match[0]);
     }
 
     lastIndex = pattern.lastIndex;
@@ -215,6 +365,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       updatedConversation,
       ...previous.filter(item => item.id !== updatedConversation.id)
     ]);
+
     setActiveId(updatedConversation.id);
     setMessage("");
     setShowSaved(false);
@@ -266,31 +417,34 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             const responseBody = await error.context.json();
             if (responseBody?.error) details = responseBody.error;
           } catch {
-            // Keep the original function error.
+            // Keep original error.
           }
         }
 
         throw new Error(details);
       }
 
-      if (data?.error) {
-        throw new Error(data.error);
-      }
+      if (data?.error) throw new Error(data.error);
 
-      const answer =
+      const rawAnswer =
         typeof data?.response === "string"
           ? data.response.trim()
           : "";
 
-      if (!answer) {
+      if (!rawAnswer) {
         throw new Error("NYX CORE returned an empty answer. Please try again.");
       }
+
+      const prepared = prepareAnswer(
+        rawAnswer,
+        data?.sources
+      );
 
       const assistantMessage = {
         id: makeId(),
         role: "assistant",
-        content: answer,
-        sources: extractLinks(answer),
+        content: prepared.content || cleanResearchText(rawAnswer),
+        sources: prepared.sources,
         provider: data.provider || "Groq",
         core: data.core || "NYX CORE",
         researchRequested: Boolean(data.researchRequested),
@@ -372,12 +526,8 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
     const references = (activeConversation.messages || [])
       .filter(item => item.role === "assistant" && !item.isError)
-      .flatMap(item => {
-        const links = item.sources?.length
-          ? item.sources
-          : extractLinks(item.content);
-
-        return links.map((source, index) => ({
+      .flatMap(item =>
+        (item.sources || []).map((source, index) => ({
           id: `${item.id}-${index}`,
           title: source.title || activeConversation.title,
           url: source.url,
@@ -387,8 +537,8 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
           studio: activeConversation.studio || studioName,
           type: "research",
           source: "NYX Research"
-        }));
-      });
+        }))
+      );
 
     if (!references.length) {
       setNotice(
@@ -399,7 +549,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
     if (typeof onAttach === "function") {
       onAttach(references);
-      setNotice(`${references.length} research source(s) sent to your studio project.`);
+      setNotice(
+        `${references.length} research source(s) sent to your studio project.`
+      );
     } else {
       setNotice("Your research is saved in this conversation.");
     }
@@ -451,7 +603,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       maxWidth: "88%",
       padding: "13px 15px",
       borderRadius: "16px",
-      lineHeight: 1.65,
+      lineHeight: 1.7,
       fontSize: "14px",
       overflowWrap: "anywhere",
       whiteSpace: "pre-wrap"
@@ -733,7 +885,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                                 color: "#d0a7ff",
                                 textDecoration: "none",
                                 fontSize: "13px",
-                                marginTop: "7px",
+                                marginTop: "9px",
                                 overflowWrap: "anywhere"
                               }}
                             >
@@ -744,7 +896,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                                   marginTop: "2px"
                                 }}
                               />
-                              <span>{source.title}</span>
+                              <span>{source.title || getDomainName(source.url)}</span>
                             </a>
                           ))}
                         </div>
