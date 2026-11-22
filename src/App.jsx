@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Film, Music, BookOpen, Mic, Gamepad2,
@@ -5,7 +6,7 @@ import {
   Send, Paperclip, ArrowLeft, Trash2, ChevronRight,
   FolderOpen, Search, Headphones, Settings, LogOut,
   Link as LinkIcon, ExternalLink, House, Compass,
-  CircleUserRound, Video, X, Plus
+  CircleUserRound, Video, X
 } from "lucide-react";
 
 import { supabase } from "./lib/supabase";
@@ -108,7 +109,11 @@ function MessageBubble({ item, searchTerm = "" }) {
 
   return (
     <div className={`nyx-message-row ${isUser ? "nyx-message-user" : "nyx-message-assistant"}`}>
-      {!isUser && <div className="nyx-message-avatar"><Sparkles size={15} /></div>}
+      {!isUser && (
+        <div className="nyx-message-avatar">
+          <Sparkles size={15} />
+        </div>
+      )}
 
       <div className="nyx-message-bubble">
         {item.text && <p>{highlightText(item.text)}</p>}
@@ -131,7 +136,9 @@ function MessageBubble({ item, searchTerm = "" }) {
         {item.audio && (
           <div className="nyx-audio-message">
             <Mic size={16} />
-            <audio controls src={item.audio}>Audio playback is not supported.</audio>
+            <audio controls src={item.audio}>
+              Audio playback is not supported.
+            </audio>
           </div>
         )}
 
@@ -169,6 +176,7 @@ function Composer({ onSend, disabled = false }) {
         rows={1}
         disabled={disabled}
       />
+
       <button
         type="submit"
         disabled={!message.trim() || disabled}
@@ -258,6 +266,7 @@ export default function App() {
 
   const visibleMessages = useMemo(() => {
     const messages = currentConversation?.messages || [];
+
     if (!chatSearch.trim()) return messages;
 
     return messages.filter((item) =>
@@ -317,6 +326,7 @@ export default function App() {
       openResearch();
       return;
     }
+
     setPage(nextPage);
   };
 
@@ -535,7 +545,10 @@ export default function App() {
       if (authMode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        setAuthMessage("Account created. Check your email if confirmation is required.");
+
+        setAuthMessage(
+          "Account created. Check your email if confirmation is required."
+        );
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -543,6 +556,7 @@ export default function App() {
         });
 
         if (error) throw error;
+
         setUser(data.user || null);
         setAuthMessage("Welcome back.");
         setPage("home");
@@ -558,6 +572,7 @@ export default function App() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+
       setUser(null);
       setPage("home");
     } catch (error) {
@@ -566,14 +581,19 @@ export default function App() {
   };
 
   const filteredStudios = STUDIOS.filter((studio) =>
-    `${studio.name} ${studio.description}`.toLowerCase().includes(search.toLowerCase())
+    `${studio.name} ${studio.description}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
   );
 
   if (page === "auth") {
     return (
       <main className="nyx-app">
         <section className="nyx-auth-page">
-          <button className="nyx-back-button" onClick={() => setPage("account")}>
+          <button
+            className="nyx-back-button"
+            onClick={() => setPage("account")}
+          >
             <ArrowLeft size={18} /> Back
           </button>
 
@@ -590,6 +610,7 @@ export default function App() {
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
+
               <input
                 type="password"
                 placeholder="Password"
@@ -598,8 +619,13 @@ export default function App() {
                 required
                 minLength={6}
               />
+
               <button type="submit" disabled={loading}>
-                {loading ? "Please wait..." : authMode === "signup" ? "Create account" : "Sign in"}
+                {loading
+                  ? "Please wait..."
+                  : authMode === "signup"
+                    ? "Create account"
+                    : "Sign in"}
               </button>
             </form>
 
@@ -639,12 +665,19 @@ export default function App() {
           </button>
 
           <div className="nyx-chat-heading">
-            <div className="nyx-chat-studio-icon" style={{ color: activeStudio.color }}>
+            <div
+              className="nyx-chat-studio-icon"
+              style={{ color: activeStudio.color }}
+            >
               <StudioIcon size={20} />
             </div>
+
             <div>
               <strong>{activeStudio.name}</strong>
-              <small><span className="nyx-online-dot" /> NYX creative assistant</small>
+              <small>
+                <span className="nyx-online-dot" />
+                NYX creative assistant
+              </small>
             </div>
           </div>
 
@@ -664,14 +697,19 @@ export default function App() {
         {chatSearchOpen && (
           <div className="nyx-chat-search-bar">
             <Search size={17} />
+
             <input
               autoFocus
               value={chatSearch}
               onChange={(event) => setChatSearch(event.target.value)}
               placeholder="Search messages in this chat..."
             />
+
             {chatSearch && (
-              <button onClick={() => setChatSearch("")} aria-label="Clear search">
+              <button
+                onClick={() => setChatSearch("")}
+                aria-label="Clear search"
+              >
                 <X size={16} />
               </button>
             )}
@@ -685,10 +723,18 @@ export default function App() {
                 <div className="nyx-welcome-orb">
                   <Sparkles size={30} />
                 </div>
-                <span className="nyx-welcome-eyebrow">YOUR CREATIVE SPACE</span>
-                <h1>Let's make something <span>beautiful.</span></h1>
+
+                <span className="nyx-welcome-eyebrow">
+                  YOUR CREATIVE SPACE
+                </span>
+
+                <h1>
+                  Let's make something <span>beautiful.</span>
+                </h1>
+
                 <p>
-                  I'm NYX. Tell me what you're imagining, and we'll shape it together.
+                  Tell me what's on your mind. We can explore your idea
+                  and shape it together.
                 </p>
 
                 <div className="nyx-prompt-list">
@@ -726,9 +772,14 @@ export default function App() {
 
             {generating && (
               <div className="nyx-message-row nyx-message-assistant">
-                <div className="nyx-message-avatar"><Sparkles size={15} /></div>
+                <div className="nyx-message-avatar">
+                  <Sparkles size={15} />
+                </div>
+
                 <div className="nyx-message-bubble nyx-typing-bubble">
-                  <span className="nyx-typing-dots"><i /><i /><i /></span>
+                  <span className="nyx-typing-dots">
+                    <i /><i /><i />
+                  </span>
                   <small>NYX is thinking</small>
                 </div>
               </div>
@@ -737,9 +788,6 @@ export default function App() {
 
           <div className="nyx-composer-area">
             <Composer onSend={sendMessage} disabled={generating} />
-            <p className="nyx-composer-note">
-              <Sparkles size={12} /> Your imagination, with NYX.
-            </p>
           </div>
         </section>
       </main>
@@ -751,9 +799,15 @@ export default function App() {
       <main className="nyx-app">
         <header className="nyx-topbar">
           <button className="nyx-brand" onClick={goHome}>
-            <Sparkles size={23} /><span>NYX</span>
+            <Sparkles size={23} />
+            <span>NYX</span>
           </button>
-          <button className="nyx-icon-button" onClick={goHome} aria-label="Back home">
+
+          <button
+            className="nyx-icon-button"
+            onClick={goHome}
+            aria-label="Back home"
+          >
             <ArrowLeft size={19} />
           </button>
         </header>
@@ -773,9 +827,14 @@ export default function App() {
     <main className="nyx-app">
       <header className="nyx-topbar">
         <button className="nyx-brand" onClick={goHome}>
-          <Sparkles size={23} /><span>NYX</span>
+          <Sparkles size={23} />
+          <span>NYX</span>
         </button>
-        <button className="nyx-account-button" onClick={() => setPage("account")}>
+
+        <button
+          className="nyx-account-button"
+          onClick={() => setPage("account")}
+        >
           <UserRound size={18} />
           {user ? "Account" : "Sign in"}
         </button>
@@ -812,13 +871,19 @@ export default function App() {
       ) : page === "reels" ? (
         <section className="nyx-page-content">
           <div className="nyx-page-title">
-            <Video size={25} /><h1>NYX Reels</h1>
+            <Video size={25} />
+            <h1>NYX Reels</h1>
           </div>
+
           <p>Discover creative videos, new ideas and inspiration.</p>
+
           <div className="nyx-empty-chat">
             <Film size={38} />
             <h3>Your creative feed starts here</h3>
-            <p>The scrollable Reels feed and video creation features will be built in the next stage.</p>
+            <p>
+              The scrollable Reels feed and video creation features
+              will be built in the next stage.
+            </p>
           </div>
         </section>
       ) : page === "projects" ? (
@@ -839,6 +904,7 @@ export default function App() {
               <div className="nyx-project-item" key={conversation.id}>
                 <button onClick={() => openConversation(conversation)}>
                   <FolderOpen size={19} />
+
                   <span>
                     <strong>{conversation.title}</strong>
                     <small>
@@ -846,6 +912,7 @@ export default function App() {
                     </small>
                   </span>
                 </button>
+
                 <button
                   onClick={() => deleteConversation(conversation.id)}
                   title="Delete project"
@@ -863,10 +930,17 @@ export default function App() {
           <p>Manage your NYX account and preferences.</p>
 
           <div className="nyx-account-card">
-            <div className="nyx-account-avatar"><UserRound size={28} /></div>
+            <div className="nyx-account-avatar">
+              <UserRound size={28} />
+            </div>
+
             <div>
               <strong>{user ? user.email : "Guest account"}</strong>
-              <p>{user ? "You are signed in to NYX." : "Sign in to access your account."}</p>
+              <p>
+                {user
+                  ? "You are signed in to NYX."
+                  : "Sign in to access your account."}
+              </p>
             </div>
           </div>
 
@@ -882,6 +956,7 @@ export default function App() {
               >
                 Sign in
               </button>
+
               <button
                 className="nyx-action-button"
                 onClick={() => {
@@ -895,7 +970,10 @@ export default function App() {
             </>
           )}
 
-          <button className="nyx-action-button" onClick={() => setPage("settings")}>
+          <button
+            className="nyx-action-button"
+            onClick={() => setPage("settings")}
+          >
             <Settings size={18} /> Settings
           </button>
 
@@ -907,23 +985,42 @@ export default function App() {
         </section>
       ) : page === "settings" ? (
         <section className="nyx-page-content">
-          <button className="nyx-back-button" onClick={() => setPage("account")}>
+          <button
+            className="nyx-back-button"
+            onClick={() => setPage("account")}
+          >
             <ArrowLeft size={18} /> Account
           </button>
+
           <h1>Settings</h1>
           <p>Manage your NYX preferences.</p>
 
           <div className="nyx-settings-item">
             <Sparkles size={19} />
-            <span><strong>Appearance</strong><small>NYX uses its dark creative theme.</small></span>
+            <span>
+              <strong>Appearance</strong>
+              <small>NYX uses its dark creative theme.</small>
+            </span>
           </div>
+
           <div className="nyx-settings-item">
             <FolderOpen size={19} />
-            <span><strong>Conversation storage</strong><small>Conversations are currently saved on this device.</small></span>
+            <span>
+              <strong>Conversation storage</strong>
+              <small>
+                Conversations are currently saved on this device.
+              </small>
+            </span>
           </div>
+
           <div className="nyx-settings-item">
             <Compass size={19} />
-            <span><strong>Research and discovery</strong><small>Research tools are available through the Research section.</small></span>
+            <span>
+              <strong>Research and discovery</strong>
+              <small>
+                Research tools are available through the Research section.
+              </small>
+            </span>
           </div>
 
           {user && (
@@ -933,7 +1030,10 @@ export default function App() {
           )}
         </section>
       ) : (
-        <Home onNavigate={navigate} onNewChat={() => startConversation(STUDIOS[0])} />
+        <Home
+          onNavigate={navigate}
+          onNewChat={() => startConversation(STUDIOS[0])}
+        />
       )}
 
       <BottomNavigation page={page} onNavigate={navigate} />
