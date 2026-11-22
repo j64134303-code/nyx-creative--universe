@@ -37,20 +37,56 @@ function getStudioName(studio) {
   return studio.name || studio.title || "Research & Discovery";
 }
 
-function decodeEntities(text = "") {
-  return text
+function decodeEntities(value = "") {
+  return String(value)
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (_, n) =>
-      String.fromCodePoint(Number(n))
-    )
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
-      String.fromCodePoint(parseInt(n, 16))
-    );
+    .replace(/&#(\d+);/g, (_, n) => {
+      try {
+        return String.fromCodePoint(Number(n));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      try {
+        return String.fromCodePoint(parseInt(n, 16));
+      } catch {
+        return "";
+      }
+    });
+}
+
+function normalizeText(value = "") {
+  return decodeEntities(value)
+    .replace(/\\([*_~`|#])/g, "$1")
+    .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
+    .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+}
+
+function getDomainName(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Research source";
+  }
+}
+
+function normalizeUrl(url) {
+  try {
+    const parsed = new URL(url.trim());
+    if (!["https:", "http:"].includes(parsed.protocol)) return null;
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return null;
+  }
 }
 
 function extractLinks(content = "") {
@@ -62,16 +98,24 @@ function extractLinks(content = "") {
   let match;
 
   while ((match = markdownPattern.exec(content)) !== null) {
-    links.push({
-      title: match[1].trim(),
-      url: match[2].replace(/[.,;!?]+$/, "")
-    });
+    const url = normalizeUrl(
+      match[2].replace(/[.,;!?]+$/, "")
+    );
+
+    if (url) {
+      links.push({
+        title: decodeEntities(match[1].trim()),
+        url
+      });
+    }
   }
 
   while ((match = urlPattern.exec(content)) !== null) {
-    const url = match[0].replace(/[.,;!?]+$/, "");
+    const url = normalizeUrl(
+      match[0].replace(/[.,;!?]+$/, "")
+    );
 
-    if (!links.some(item => item.url === url)) {
+    if (url && !links.some(item => item.url === url)) {
       links.push({
         title: getDomainName(url),
         url
@@ -79,65 +123,88 @@ function extractLinks(content = "") {
     }
   }
 
-  return links.filter(item => {
-    try {
-      const parsed = new URL(item.url);
-      return parsed.protocol === "https:" || parsed.protocol === "http:";
-    } catch {
-      return false;
-    }
-  });
-}
-
-function getDomainName(url) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "Research source";
-  }
+  return links;
 }
 
 function combineSources(content, structuredSources = []) {
-  const found = extractLinks(content);
-  const combined = [...found];
+  const combined = extractLinks(content);
 
-  if (Array.isArray(structuredSources)) {
-    structuredSources.forEach(source => {
-      const url =
-        typeof source === "string"
-          ? source
-          : source?.url;
+  if (!Array.isArray(structuredSources)) {
+    return combined;
+  }
 
-      if (!url || combined.some(item => item.url === url)) return;
+  structuredSources.forEach(source => {
+    const rawUrl =
+      typeof source === "string"
+        ? source
+        : source?.url;
 
-      combined.push({
-        title:
+    const url = rawUrl ? normalizeUrl(rawUrl) : null;
+
+    if (!url) return;
+
+    const existing = combined.some(item => {
+      try {
+        return new URL(item.url).href === url;
+      } catch {
+        return false;
+      }
+    });
+
+    if (existing) {
+      const match = combined.find(item => item.url === url);
+
+      if (
+        match &&
+        source?.title &&
+        match.title === getDomainName(url)
+      ) {
+        match.title = decodeEntities(source.title);
+      }
+
+      return;
+    }
+
+    combined.push({
+      title:
+        decodeEntities(
           source?.title ||
           source?.source_title ||
-          getDomainName(url),
-        url
-      });
+          getDomainName(url)
+        ),
+      url
     });
-  }
+  });
 
   return combined;
 }
 
-function cleanResearchText(content = "") {
-  let text = decodeEntities(content);
+function isSourceHeading(line) {
+  return /^\s{0,3}(?:#{1,6}\s*)?(?:\*{1,2}|_{1,2})?\s*(?:sources?|references|citations)\s*:?\s*(?:\*{1,2}|_{1,2})?\s*$/i.test(
+    line
+  );
+}
 
-  text = text
-    .replace(/\\([*_~`|#])/g, "$1")
-    .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
-    .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
-    .replace(/\r\n/g, "\n");
+function removeSourceSection(content = "") {
+  const lines = normalizeText(content).split("\n");
+  const index = lines.findIndex(isSourceHeading);
+
+  return (index === -1 ? lines : lines.slice(0, index))
+    .join("\n")
+    .trim();
+}
+
+function cleanResearchText(content = "") {
+  let text = normalizeText(content);
+
+  text = removeSourceSection(text);
 
   const lines = text.split("\n");
   const output = [];
   let tableHeaders = null;
 
   for (const originalLine of lines) {
-    const line = originalLine.trim();
+    let line = originalLine.trim();
 
     if (!line) {
       output.push("");
@@ -145,21 +212,28 @@ function cleanResearchText(content = "") {
       continue;
     }
 
+    // Keep readable text instead of broken Markdown links.
+    line = line.replace(
+      /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi,
+      "$1"
+    );
+
+    // Convert Markdown tables into readable text.
     if (line.includes("|")) {
       const cells = line
         .split("|")
         .map(cell => cell.trim())
         .filter(Boolean);
 
-      const isSeparator =
+      const separator =
         cells.length > 0 &&
         cells.every(cell => /^:?-{2,}:?$/.test(cell));
 
-      if (isSeparator) continue;
+      if (separator) continue;
 
       const isHeader =
         cells.some(cell =>
-          /^(trend|number|#|source|topic|finding|category)$/i.test(cell)
+          /^(trend|number|#|source|topic|finding|category|date)$/i.test(cell)
         ) ||
         (cells.length >= 3 && !tableHeaders);
 
@@ -177,116 +251,51 @@ function cleanResearchText(content = "") {
         });
 
         output.push("");
-        continue;
+      } else {
+        output.push(cells.join(" — "));
       }
 
-      output.push(cells.join(" — "));
       continue;
     }
 
     tableHeaders = null;
 
-    output.push(
-      line
-        .replace(/^#{1,6}\s*/, "")
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/__(.*?)__/g, "$1")
-        .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
-        .replace(/~~(.*?)~~/g, "$1")
+    // Remove remaining raw URLs from the message body.
+    line = line.replace(
+      /https?:\/\/[^\s<>"')\]]+/gi,
+      ""
     );
+
+    line = line
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^>\s?/, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/__(.*?)__/g, "$1")
+      .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
+      .replace(/~~(.*?)~~/g, "$1")
+      .replace(/[ \t]+$/g, "");
+
+    output.push(line);
   }
 
   return output
     .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function removeSourceSection(content = "") {
-  return content
-    .replace(/\n\s*SOURCES\s*\n[\s\S]*$/i, "")
-    .trim();
-}
-
-function removeRawUrls(content = "") {
-  return content
-    .replace(/https?:\/\/[^\s<>"')\]]+/gi, "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
 function prepareAnswer(rawAnswer, structuredSources) {
-  const decoded = decodeEntities(rawAnswer);
-  const sources = combineSources(decoded, structuredSources);
+  const decoded = normalizeText(rawAnswer);
 
-  let content = removeSourceSection(decoded);
-  content = removeRawUrls(content);
-  content = cleanResearchText(content);
-
-  return { content, sources };
+  return {
+    content: cleanResearchText(decoded),
+    sources: combineSources(decoded, structuredSources)
+  };
 }
 
 function renderMessageContent(content = "") {
-  const parts = [];
-  const pattern =
-    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>)\]]+)/g;
-
-  let lastIndex = 0;
-  let match;
-  let key = 0;
-
-  while ((match = pattern.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(
-        <React.Fragment key={`text-${key++}`}>
-          {content.slice(lastIndex, match.index)}
-        </React.Fragment>
-      );
-    }
-
-    const label = match[1] || match[3];
-    const rawUrl = match[2] || match[3];
-    const url = rawUrl.replace(/[.,;!?]+$/, "");
-
-    try {
-      const parsed = new URL(url);
-
-      if (["https:", "http:"].includes(parsed.protocol)) {
-        parts.push(
-          <a
-            key={`link-${key++}`}
-            href={parsed.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: "#d0a7ff",
-              textDecoration: "underline",
-              overflowWrap: "anywhere"
-            }}
-          >
-            {label}
-          </a>
-        );
-      } else {
-        parts.push(match[0]);
-      }
-    } catch {
-      parts.push(match[0]);
-    }
-
-    lastIndex = pattern.lastIndex;
-  }
-
-  if (lastIndex < content.length) {
-    parts.push(
-      <React.Fragment key={`text-${key++}`}>
-        {content.slice(lastIndex)}
-      </React.Fragment>
-    );
-  }
-
-  return parts;
+  return cleanResearchText(content);
 }
 
 export default function ResearchHub({ studio, onBack, onAttach }) {
@@ -331,6 +340,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
   async function sendMessage() {
     const question = message.trim();
+
     if (!question || isResearching) return;
 
     const existing = activeConversation;
@@ -338,9 +348,10 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
     const conversation = existing || {
       id: makeId(),
-      title: question.length > 48
-        ? `${question.slice(0, 48)}...`
-        : question,
+      title:
+        question.length > 48
+          ? `${question.slice(0, 48)}...`
+          : question,
       studio: studioName,
       saved: false,
       createdAt: now,
@@ -358,7 +369,10 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
     const updatedConversation = {
       ...conversation,
       updatedAt: now,
-      messages: [...(conversation.messages || []), userMessage]
+      messages: [
+        ...(conversation.messages || []),
+        userMessage
+      ]
     };
 
     setConversations(previous => [
@@ -383,7 +397,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       const accessToken = sessionData?.session?.access_token;
 
       if (!accessToken) {
-        throw new Error("Please sign in again before using NYX Research.");
+        throw new Error(
+          "Please sign in again before using NYX Research."
+        );
       }
 
       const history = (conversation.messages || [])
@@ -398,26 +414,36 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
           content: item.content
         }));
 
-      const { data, error } = await supabase.functions.invoke("nyx-core", {
-        body: {
-          message: question,
-          studioName,
-          history
-        },
-        headers: {
-          Authorization: `Bearer ${accessToken}`
+      const { data, error } = await supabase.functions.invoke(
+        "nyx-core",
+        {
+          body: {
+            message: question,
+            studioName,
+            history
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
         }
-      });
+      );
 
       if (error) {
-        let details = error.message || "The NYX CORE request failed.";
+        let details =
+          error.message || "The NYX CORE request failed.";
 
-        if (error.context && typeof error.context.json === "function") {
+        if (
+          error.context &&
+          typeof error.context.json === "function"
+        ) {
           try {
             const responseBody = await error.context.json();
-            if (responseBody?.error) details = responseBody.error;
+
+            if (responseBody?.error) {
+              details = responseBody.error;
+            }
           } catch {
-            // Keep original error.
+            // Keep the original error.
           }
         }
 
@@ -432,7 +458,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
           : "";
 
       if (!rawAnswer) {
-        throw new Error("NYX CORE returned an empty answer. Please try again.");
+        throw new Error(
+          "NYX CORE returned an empty answer. Please try again."
+        );
       }
 
       const prepared = prepareAnswer(
@@ -457,7 +485,10 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             ? {
                 ...item,
                 updatedAt: new Date().toISOString(),
-                messages: [...(item.messages || []), assistantMessage]
+                messages: [
+                  ...(item.messages || []),
+                  assistantMessage
+                ]
               }
             : item
         )
@@ -466,7 +497,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
       const errorMessage = {
         id: makeId(),
         role: "assistant",
-        content: `I couldn't complete that research request. ${error?.message || "Please try again."}`,
+        content: `I couldn't complete that research request. ${
+          error?.message || "Please try again."
+        }`,
         isError: true,
         createdAt: new Date().toISOString()
       };
@@ -477,7 +510,10 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             ? {
                 ...item,
                 updatedAt: new Date().toISOString(),
-                messages: [...(item.messages || []), errorMessage]
+                messages: [
+                  ...(item.messages || []),
+                  errorMessage
+                ]
               }
             : item
         )
@@ -518,6 +554,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
     );
 
     if (activeId === id) setActiveId(null);
+
     setNotice("Conversation deleted.");
   }
 
@@ -663,7 +700,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
             fontSize: "16px",
             marginTop: "3px"
           }}>
-            Research
+            Research &amp; Discovery
           </div>
 
           <div style={styles.muted}>{studioName}</div>
@@ -826,22 +863,21 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                   key={item.id}
                   style={{
                     display: "flex",
-                    justifyContent: item.role === "user"
-                      ? "flex-end"
-                      : "flex-start",
+                    justifyContent:
+                      item.role === "user" ? "flex-end" : "flex-start",
                     marginBottom: "15px"
                   }}
                 >
                   <div style={{
                     ...styles.message,
-                    background: item.role === "user"
-                      ? "#39234e"
-                      : "#17141f",
-                    border: item.role === "user"
-                      ? "1px solid #63418a"
-                      : item.isError
-                        ? "1px solid #8b4545"
-                        : "1px solid #30283c"
+                    background:
+                      item.role === "user" ? "#39234e" : "#17141f",
+                    border:
+                      item.role === "user"
+                        ? "1px solid #63418a"
+                        : item.isError
+                          ? "1px solid #8b4545"
+                          : "1px solid #30283c"
                   }}>
                     {item.role === "assistant" && (
                       <div style={{
@@ -869,7 +905,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                             fontWeight: 700,
                             marginBottom: "8px"
                           }}>
-                            SOURCES
+                            RESEARCH SOURCES
                           </div>
 
                           {item.sources.map((source, index) => (
@@ -896,7 +932,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
                                   marginTop: "2px"
                                 }}
                               />
-                              <span>{source.title || getDomainName(source.url)}</span>
+                              <span>
+                                {source.title || getDomainName(source.url)}
+                              </span>
                             </a>
                           ))}
                         </div>
@@ -949,12 +987,14 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
               disabled={!message.trim() || isResearching}
               style={{
                 ...styles.iconButton,
-                background: message.trim() && !isResearching
-                  ? "#8750c9"
-                  : "#30283c",
+                background:
+                  message.trim() && !isResearching
+                    ? "#8750c9"
+                    : "#30283c",
                 color: "#ffffff",
                 border: "none",
-                opacity: message.trim() && !isResearching ? 1 : 0.5
+                opacity:
+                  message.trim() && !isResearching ? 1 : 0.5
               }}
               aria-label="Send research question"
             >
