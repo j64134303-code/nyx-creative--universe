@@ -47,8 +47,6 @@ Deno.serve(async (req) => {
 
     const token = authorization.slice(7);
 
-    // The user's token is also sent with database requests.
-    // This allows Supabase Row Level Security to identify the user.
     const supabase = createClient(
       supabaseUrl,
       supabaseAnonKey,
@@ -112,9 +110,7 @@ Deno.serve(async (req) => {
           }))
       : [];
 
-    // --------------------------------------------------
-    // 1. READ THE USER'S SHARED NYX MEMORY
-    // --------------------------------------------------
+    // 1. READ SHARED NYX MEMORY
 
     let savedMemories: any[] = [];
     let memoryReadError: string | null = null;
@@ -136,9 +132,7 @@ Deno.serve(async (req) => {
       savedMemories = memoryData ?? [];
     }
 
-    // --------------------------------------------------
-    // 2. IDENTIFY RESEARCH REQUESTS
-    // --------------------------------------------------
+    // 2. IDENTIFY RESEARCH AND PREFERENCE REQUESTS
 
     const researchPattern =
       /\b(research|web search|live search|search online|look up|find sources|sources|citations|current trends|latest trends|recent developments|study .* influences|investigate|verify online|competitors|references|fact.?check|discover .* trends|what is happening in|latest developments)\b/i;
@@ -151,17 +145,13 @@ Deno.serve(async (req) => {
     const isCreatorPreference =
       preferencePattern.test(message);
 
-    // --------------------------------------------------
     // 3. BUILD SHARED MEMORY CONTEXT
-    // --------------------------------------------------
 
     const memoryContext = savedMemories.length
       ? JSON.stringify(savedMemories)
       : "No saved NYX memories are available yet.";
 
-    // --------------------------------------------------
     // 4. NYX CORE INTELLIGENCE
-    // --------------------------------------------------
 
     const systemPrompt = `
 # IDENTITY
@@ -503,9 +493,7 @@ When current information matters, use it even if the
 creator did not use the word "research".
 `;
 
-    // --------------------------------------------------
     // 5. CALL GROQ WITH BROWSER SEARCH AVAILABLE
-    // --------------------------------------------------
 
     const groqRequest: Record<string, unknown> = {
       model: "openai/gpt-oss-120b",
@@ -521,7 +509,6 @@ creator did not use the word "research".
         { type: "browser_search" },
       ],
       tool_choice: researchRequested ? "required" : "auto",
-      citation_options: "enabled",
     };
 
     const groqResponse = await fetch(
@@ -572,9 +559,7 @@ creator did not use the word "research".
 
     const finalResponse = response.trim();
 
-    // --------------------------------------------------
     // 6. SAVE USEFUL CONVERSATION CONTEXT
-    // --------------------------------------------------
 
     const isGreeting =
       /^(hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you)[!. ]*$/i
@@ -637,9 +622,7 @@ creator did not use the word "research".
       }
     }
 
-    // --------------------------------------------------
     // 7. RETURN THE RESPONSE
-    // --------------------------------------------------
 
     return jsonResponse({
       response: finalResponse,
