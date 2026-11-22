@@ -32,88 +32,31 @@ function decodeHtmlEntities(value: string): string {
 }
 
 function cleanResearchText(value: string): string {
-  let text = decodeHtmlEntities(value);
-
-  text = text
+  return decodeHtmlEntities(value)
     .replace(/\\([*_~`|#])/g, "$1")
-    .replace(/\*\*(.*?)\*\*/gs, "$1")
-    .replace(/__(.*?)__/gs, "$1")
-    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "$1")
-    .replace(/^#{1,6}\s*/gm, "")
     .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
     .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  const lines = text.split("\n");
-  const output: string[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    if (!line.includes("|")) {
-      output.push(line);
-      continue;
-    }
-
-    const cells = line
-      .split("|")
-      .map((cell) => cell.trim())
-      .filter(Boolean);
-
-    if (
-      cells.length &&
-      cells.every((cell) => /^:?-{2,}:?$/.test(cell))
-    ) {
-      continue;
-    }
-
-    if (
-      cells.length >= 2 &&
-      /trend/i.test(cells[0]) &&
-      /source/i.test(cells[cells.length - 1])
-    ) {
-      output.push("");
-      output.push("RESEARCH FINDINGS");
-      continue;
-    }
-
-    if (cells.length >= 2) {
-      const previous = lines[i - 1] || "";
-      const previousCells = previous
-        .split("|")
-        .map((cell) => cell.trim())
-        .filter(Boolean);
-
-      if (
-        previousCells.length === cells.length &&
-        /trend/i.test(previousCells[0])
-      ) {
-        const labels = previousCells;
-        for (let j = 0; j < cells.length; j++) {
-          output.push(`${labels[j]}: ${cells[j]}`);
-        }
-        output.push("");
-        continue;
-      }
-    }
-
-    output.push(cells.join(" — "));
-  }
-
-  return output
-    .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
 function extractSources(value: string) {
-  const matches = value.match(/https?:\/\/[^\s<>"')\]]+/gi) ?? [];
-  const unique = [...new Set(matches)];
+  const matches =
+    value.match(/https?:\/\/[^\s<>"')\]]+/gi) ?? [];
 
-  return unique.map((url) => ({
-    url: url.replace(/[.,;!?]+$/, ""),
-  }));
+  const unique = [...new Set(
+    matches.map((url) => url.replace(/[.,;!?]+$/, ""))
+  )];
+
+  return unique.map((url) => ({ url }));
+}
+
+function isValidHistoryItem(item: any) {
+  return (
+    item &&
+    ["user", "assistant"].includes(item.role) &&
+    typeof item.content === "string"
+  );
 }
 
 Deno.serve(async (req) => {
@@ -152,9 +95,7 @@ Deno.serve(async (req) => {
       supabaseAnonKey,
       {
         global: {
-          headers: {
-            Authorization: authorization,
-          },
+          headers: { Authorization: authorization },
         },
       },
     );
@@ -197,12 +138,7 @@ Deno.serve(async (req) => {
 
     const history = Array.isArray(body.history)
       ? body.history
-          .filter(
-            (item: any) =>
-              item &&
-              ["user", "assistant"].includes(item.role) &&
-              typeof item.content === "string",
-          )
+          .filter(isValidHistoryItem)
           .slice(-12)
           .map((item: any) => ({
             role: item.role,
@@ -235,7 +171,7 @@ Deno.serve(async (req) => {
     // 2. IDENTIFY RESEARCH AND PREFERENCE REQUESTS
 
     const researchPattern =
-      /\b(research|web search|live search|search online|look up|find sources|sources|citations|current trends|latest trends|recent developments|study .* influences|investigate|verify online|competitors|references|fact.?check|discover .* trends|what is happening in|latest developments)\b/i;
+      /\b(research|web search|live search|search online|search the web|look up|find sources|sources|citations|current|currently|latest|recent|trends|developments|investigate|verify online|competitors|references|fact.?check|discover|what is happening|industry news|market research|statistics|studies|evidence|compare .* sources)\b/i;
 
     const researchRequested = researchPattern.test(message);
 
@@ -244,6 +180,10 @@ Deno.serve(async (req) => {
 
     const isCreatorPreference =
       preferencePattern.test(message);
+
+    // Use the server's current date rather than guessing the year.
+    const currentDate = new Date().toISOString().slice(0, 10);
+    const currentYear = currentDate.slice(0, 4);
 
     // 3. BUILD SHARED MEMORY CONTEXT
 
@@ -262,9 +202,12 @@ NYX creative universe.
 You are a creative partner, autonomous creative director,
 research thinker, production coordinator and problem-solver.
 
-You connect the creator's vision with the specialised studios.
+You connect the creator's vision with specialised studios.
 
 Current studio: ${studioName}
+
+Current date: ${currentDate}
+Current year: ${currentYear}
 
 # THE NYX PRINCIPLE
 
@@ -307,9 +250,9 @@ action actually happened.
 If a required production engine is unavailable,
 explain the limitation honestly.
 
-# SHARED LIVE RESEARCH
+# LIVE RESEARCH
 
-Browser research is available to NYX through Groq.
+Browser research is available through Groq.
 
 It is available across all studios, not just Research
 and Discovery.
@@ -319,18 +262,74 @@ Use browser research when:
 - Current information could materially improve the work.
 - Recent trends, references or developments matter.
 - Facts need verification.
-- Relevant sources or comparisons are requested.
+- Sources or comparisons are requested.
 
-When the creator explicitly requests live research,
-you MUST use browser search.
+When explicit research is requested, browser search
+is mandatory.
 
-Research should cover all relevant historical periods.
-Do not restrict research to one year.
+Do not answer an explicit research request from memory alone.
 
-Prioritise the newest credible developments while
-comparing them with older influential work where useful.
+# CURRENT INFORMATION RULES
 
-For every relevant studio, adapt research to the project.
+The current date is ${currentDate}.
+
+For requests asking for current, latest, recent or
+present-day information:
+
+1. Search for information available as of the current date.
+2. Prioritise sources published in ${currentYear}.
+3. Prefer the newest relevant material, not simply the
+   newest search result.
+4. Check the publication date of each source when available.
+5. Distinguish publication dates from the dates of events
+   being discussed.
+6. Do not present a 2024 or 2025 trend as a new
+   ${currentYear} development.
+7. Older material may be included for historical context,
+   but label it clearly as historical.
+8. If reliable ${currentYear} information is unavailable,
+   say so instead of pretending older information is current.
+9. Never invent publication dates.
+10. Do not assume that a page is current just because
+    it appears near the top of search results.
+
+For example, if someone asks for current filmmaking
+trends, investigate developments in the current year.
+Do not automatically return an old annual trend article.
+
+If the creator specifies a different period, respect
+the requested period.
+
+# RESEARCH DEPTH
+
+For research requests, aim for at least three useful,
+independent sources when the subject allows.
+
+Prefer:
+- Original research and reports.
+- Industry organisations.
+- Recognised publications.
+- Official company announcements.
+- Academic publications.
+- Government and institutional sources.
+- Direct interviews and primary sources.
+
+Avoid relying entirely on:
+- Search-result summaries.
+- Unattributed blogs.
+- Reposted articles.
+- Promotional claims.
+- Outdated pages.
+
+Compare sources when useful.
+
+Do not invent evidence to reach a source count.
+
+If fewer credible sources are available, explain that.
+
+# RESEARCH ACROSS STUDIOS
+
+Adapt research to the actual creative project.
 
 MUSIC:
 Musical traditions, instruments, rhythms, genres,
@@ -377,53 +376,47 @@ Research must be relevant to the actual project.
 Use findings to improve creative decisions.
 Do not overwhelm the creator with irrelevant research.
 
-# RESEARCH SOURCES AND HONESTY
+# SOURCE HONESTY AND CLICKABLE LINKS
 
 When live research is performed:
 
 - Identify source titles and publishers where available.
 - Include publication dates where available.
-- Include actual, complete, clickable source URLs.
+- Include complete, direct source URLs.
 - Prefer original and authoritative sources.
-- Compare sources when useful.
 - Distinguish verified findings from interpretation.
-- Do not invent citations, links, dates or quotations.
-- Never describe old information as a recent discovery.
-
-IMPORTANT SOURCE LINK RULES:
+- Never invent citations, links, dates or quotations.
+- Never cite a source you did not use.
+- Never claim that a link was opened or verified
+  if it was not.
 
 Do not output citation placeholders such as:
 【1†L44-L51】
 〖2†L10-L20〗
 or similar reference markers.
 
-For every source you cite, provide its actual direct
-HTTP or HTTPS URL in full.
+Use actual HTTP or HTTPS source URLs.
 
-Write source links as plain URLs, not shortened names
-and not hidden behind citation markers.
-
-Use this format:
+Place the source list at the end in this format:
 
 SOURCES
 
 1. Source title — Publisher — publication date
-   https://actual-source-url
+   https://complete-source-url
 
 2. Source title — Publisher — publication date
-   https://actual-source-url
+   https://complete-source-url
 
-Only provide URLs that you can identify from the
-research results or confidently verify.
+Only include links that were actually provided by
+the research process or that can be confidently identified.
 
 Never manufacture a URL to make the answer look complete.
 
-If a source's direct URL is unavailable, say that
-the source link could not be verified.
+If a direct source URL is unavailable, state that
+the link could not be verified.
 
-Do not cite a source you did not use.
-
-If research fails, say so.
+If browser research fails, say so.
+Do not pretend that research took place.
 
 Distinguish between:
 
@@ -440,25 +433,26 @@ Original ideas developed using research and knowledge.
 
 Make research easy to read on a phone.
 
+Use simple headings and numbered findings.
+
 Do not use Markdown tables.
 
-Do not use complicated table layouts.
+Do not use complicated layouts.
 
-Do not use escaped Markdown symbols.
+Do not output escaped Markdown symbols such as \\*\\*.
 
 Do not output HTML entities such as &amp; or &lt;.
 
-Use simple text headings and numbered findings.
-
 For each finding, explain:
 - What it is.
-- Why it is growing or matters.
+- Why it matters.
 - Evidence or examples.
 - Its practical relevance.
 
-Place the SOURCES section at the end.
-
 Use short paragraphs and clear spacing.
+
+Include one SOURCES section at the end.
+Do not repeat the same source list in multiple places.
 
 # PERSISTENT CREATIVE MEMORY
 
@@ -505,7 +499,6 @@ Retain useful genre conventions and broad influences,
 then introduce original creative choices.
 
 Look for opportunities such as:
-
 - Unexpected musical transitions.
 - Distinctive rhythms and melodies.
 - Fresh character motivations.
@@ -523,7 +516,6 @@ or has never existed before.
 # ORIGINALITY AND QUALITY
 
 Evaluate creative work against:
-
 - The creator's intention.
 - Professional quality expectations.
 - Internal consistency.
@@ -642,11 +634,19 @@ ${memoryContext}
 
 Explicit research requested: ${researchRequested ? "YES" : "NO"}
 
-Browser research is available. For explicit research
-requests, use it before answering.
+Current date: ${currentDate}
+
+${researchRequested
+  ? `You MUST use Groq browser search before answering.
+Search for current information relevant to the user's actual request.
+For current-trend requests, prioritise ${currentYear} sources.
+Check source dates and provide direct source URLs.
+Do not substitute older annual reports for current developments.
+If current evidence is limited, disclose that limitation.`
+  : "Use browser search when it would materially improve the answer."}
 `;
 
-    // 5. CALL GROQ WITH BROWSER SEARCH AVAILABLE
+    // 5. CALL GROQ WITH BROWSER SEARCH
 
     const groqRequest: Record<string, unknown> = {
       model: "openai/gpt-oss-120b",
@@ -655,7 +655,7 @@ requests, use it before answering.
         ...history,
         { role: "user", content: message },
       ],
-      temperature: 0.85,
+      temperature: researchRequested ? 0.4 : 0.85,
       max_completion_tokens: 4096,
       reasoning_effort: "low",
       tools: [
@@ -791,6 +791,7 @@ requests, use it before answering.
       studio: studioName,
       researchAvailable: true,
       researchRequested,
+      researchDate: currentDate,
       memoryAvailable: memoryReadError === null,
       memorySaved,
       memoryReadError,
