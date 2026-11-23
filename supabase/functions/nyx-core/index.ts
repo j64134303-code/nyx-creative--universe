@@ -538,17 +538,13 @@ function validateHistory(value: unknown): ChatMessage[] {
 // ======================================================
 // PART 2: MEMORY NORMALIZATION
 // ======================================================
-
 function normalizeStudioForMemory(
   studioValue: unknown,
 ): string {
-  const studio = getStudio(studioValue);
-
-  if (studio) return studio.id;
-
   const normalized = normalizeKey(studioValue);
 
   if (
+    !normalized ||
     normalized === "general" ||
     normalized === "all studios" ||
     normalized === "shared"
@@ -556,7 +552,15 @@ function normalizeStudioForMemory(
     return "general";
   }
 
-  return "general";
+  const studio = getStudio(studioValue);
+
+  if (studio) {
+    return studio.id;
+  }
+
+  throw new Error(
+    "Unknown studio. Please select a valid NYX studio.",
+  );
 }
 
 function normalizeMemoryType(
@@ -595,30 +599,63 @@ function normalizeMemoryContent(
 ): Record<string, unknown> {
   if (!isPlainObject(value)) return {};
 
-  const entries = Object.entries(value).slice(0, 40);
-  const result: Record<string, unknown> = {};
-
-  for (const [key, item] of entries) {
-    const safeKey = safeString(key, 100);
-
-    if (!safeKey) continue;
+  function sanitizeValue(
+    item: unknown,
+    depth: number,
+  ): unknown {
+    if (depth > 4) return undefined;
 
     if (typeof item === "string") {
-      result[safeKey] = safeString(item, 4000);
-    } else if (
-      typeof item === "number" ||
+      return safeString(item, 4000);
+    }
+
+    if (typeof item === "number") {
+      return Number.isFinite(item) ? item : undefined;
+    }
+
+    if (
       typeof item === "boolean" ||
       item === null
     ) {
-      result[safeKey] = item;
-    } else if (Array.isArray(item)) {
-      result[safeKey] = item.slice(0, 30);
-    } else if (isPlainObject(item)) {
-      result[safeKey] = item;
+      return item;
     }
+
+    if (Array.isArray(item)) {
+      return item
+        .slice(0, 30)
+        .map((entry) => sanitizeValue(entry, depth + 1))
+        .filter((entry) => entry !== undefined);
+    }
+
+    if (isPlainObject(item)) {
+      const result: Record<string, unknown> = {};
+
+      for (
+        const [key, nestedValue] of
+        Object.entries(item).slice(0, 40)
+      ) {
+        const safeKey = safeString(key, 100);
+
+        if (!safeKey) continue;
+
+        const sanitized = sanitizeValue(
+          nestedValue,
+          depth + 1,
+        );
+
+        if (sanitized !== undefined) {
+          result[safeKey] = sanitized;
+        }
+      }
+
+      return result;
+    }
+
+    return undefined;
   }
 
-  return result;
+  return sanitizeValue(value, 0) as Record<string, unknown>;
+}
 }// ======================================================
 // PART 3: MEMORY SETTINGS AND DATABASE OPERATIONS
 // ======================================================
@@ -1144,7 +1181,7 @@ async function retrieveRelevantMemory(
     }
 
     if (memory.studio === studioId) score += 3;
-    if (memory.studio === "general") score += 2;
+    if (normalizeStudioForMemory(memory.studio) === "general") score += 2;
     if (memory.project_id === projectId && projectId) {
       score += 4;
     }
@@ -1213,25 +1250,13 @@ function hasExactCreatorEvidence(
 }
 
 function isSafeMemoryUpdate(
-  update: MemoryUpdate,
-  creatorText: string,
+  _update: MemoryUpdate,
+  _creatorText: string,
 ): boolean {
-  if (
-    update.approvalStatus !== "creator-stated" &&
-    update.approvalStatus !== "creator-confirmed"
-  ) {
-    return false;
-  }
-
-  if (!hasExactCreatorEvidence(update.evidence, creatorText)) {
-    return false;
-  }
-
-  if (!update.title.trim()) return false;
-
-  return true;
+  // AI-proposed memories must not be saved automatically.
+  // Explicit creator confirmation will be implemented separately.
+  return false;
 }
-
 function normalizeMemoryUpdate(
   value: unknown,
 ): MemoryUpdate | null {
@@ -1398,11 +1423,17 @@ function normalizeDeliverable(value: unknown): Deliverable | null {
     return null;
   }
 
+  const status: DeliverableStatus =
+    value.status === "requires_engine"
+      ? "requires_engine"
+      : "planned";
+
   return {
     studioId: studio.id,
     title,
     description,
     type,
+    status,
   };
 }
 
@@ -1878,7 +1909,9 @@ function parseMemoryActionRequest(
   return {
     action,
     memoryId: safeString(value.memoryId, 100) || undefined,
-    projectId: validateProjectId(value.projectId ?? null),
+    projectId: value.projectId === undefined
+  ? undefined
+  : validateProjectId(value.projectId),
     studio: value.studio === undefined
       ? undefined
       : safeString(value.studio, 100),
