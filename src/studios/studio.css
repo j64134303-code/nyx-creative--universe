@@ -1,0 +1,212 @@
+
+.nyx-studio-workspace {
+  min-height: 100vh;
+  padding: 28px 20px 60px;
+  background: #090710;
+  color: #f5f0ff;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.nyx-studio-workspace * {
+  box-sizing: border-box;
+}
+
+.nyx-studio-header {
+  max-width: 900px;
+  margin: 0 auto 36px;
+}
+
+.nyx-studio-back {
+  display: block;
+  margin-bottom: 28px;
+  padding: 10px 16px;
+  border: 1px solid #383044;
+  border-radius: 12px;
+  background: #17121f;
+  color: #eee5ff;
+  cursor: pointer;
+}
+
+.nyx-studio-label {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #b99aff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.nyx-studio-header h1 {
+  margin: 0 0 12px;
+  font-size: clamp(28px, 6vw, 46px);
+  line-height: 1.15;
+}
+
+.nyx-studio-header p,
+.nyx-studio-description {
+  color: #aaa1b8;
+  line-height: 1.7;
+}
+
+.nyx-studio-section,
+.nyx-studio-creator {
+  max-width: 900px;
+  margin: 0 auto 22px;
+  padding: 24px;
+  border: 1px solid #282131;
+  border-radius: 20px;
+  background: #100d18;
+}
+
+.nyx-studio-section h2,
+.nyx-studio-creator h2 {
+  margin: 0 0 18px;
+  font-size: 19px;
+}
+
+.nyx-studio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.nyx-studio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #30263d;
+  border-radius: 12px;
+  background: #17121f;
+  color: #e5dced;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.nyx-studio-item span {
+  color: #bd98ff;
+}
+
+.nyx-studio-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nyx-studio-tags span {
+  padding: 9px 13px;
+  border: 1px solid #49365f;
+  border-radius: 30px;
+  background: #1b1427;
+  color: #d8c4fa;
+  font-size: 13px;
+}
+
+.nyx-studio-creator {
+  border-color: #584078;
+  background: linear-gradient(145deg, #171020, #100d18);
+}
+
+.nyx-studio-creator p {
+  color: #aaa1b8;
+  line-height: 1.7;
+}
+
+.nyx-studio-creator form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nyx-studio-creator textarea {
+  width: 100%;
+  min-height: 130px;
+  resize: vertical;
+  padding: 16px;
+  border: 1px solid #40344f;
+  border-radius: 14px;
+  outline: none;
+  background: #090710;
+  color: #fff;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.nyx-studio-creator textarea:focus {
+  border-color: #a77aff;
+  box-shadow: 0 0 0 2px #a77aff22;
+}
+
+.nyx-studio-creator textarea::placeholder {
+  color: #766b84;
+}
+
+.nyx-studio-creator button[type="submit"] {
+  align-self: flex-start;
+  padding: 13px 20px;
+  border: 0;
+  border-radius: 12px;
+  background: #9565d8;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nyx-studio-creator button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nyx-studio-error {
+  margin-top: 16px;
+  padding: 13px;
+  border: 1px solid #793c50;
+  border-radius: 12px;
+  background: #28121c;
+  color: #ffb4c6;
+}
+
+.nyx-studio-result {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid #49365f;
+  border-radius: 14px;
+  background: #0b0812;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.nyx-studio-result h3 {
+  color: #c9a8ff;
+}
+
+.nyx-studio-result a {
+  display: block;
+  margin: 8px 0;
+  color: #c9a8ff;
+  overflow-wrap: anywhere;
+}
+
+.nyx-studio-result small {
+  display: block;
+  margin-top: 18px;
+  color: #9488a2;
+}
+
+@media (max-width: 600px) {
+  .nyx-studio-workspace {
+    padding: 20px 13px 40px;
+  }
+
+  .nyx-studio-section,
+  .nyx-studio-creator {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .nyx-studio-grid {
+    grid-template-columns: 1fr;
+  }
+}
