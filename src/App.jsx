@@ -12,6 +12,7 @@ import {
 import { supabase } from "./lib/supabase";
 import ResearchHub from "./ResearchHub";
 import Home from "./Home";
+import StudioWorkspace from "./studios/StudioWorkspace";
 
 const STORAGE_KEY = "nyx-conversations-v1";
 
@@ -214,6 +215,7 @@ export default function App() {
   const [conversations, setConversations] = useState(loadConversations);
   const [activeConversation, setActiveConversation] = useState(null);
   const [activeStudio, setActiveStudio] = useState(null);
+  const [workspaceStudioId, setWorkspaceStudioId] = useState(null);
 
   const [page, setPage] = useState("home");
   const [researchReturnPage, setResearchReturnPage] = useState("home");
@@ -294,6 +296,14 @@ export default function App() {
     setPage("chat");
   };
 
+  const openStudioWorkspace = (studio) => {
+    if (!studio) return;
+
+    setWorkspaceStudioId(studio.id);
+    setActiveStudio(studio);
+    setPage("studio-workspace");
+  };
+
   const openConversation = (conversation) => {
     const studio = findStudio(conversation.studioId) || STUDIOS[0];
 
@@ -313,6 +323,8 @@ export default function App() {
   const openResearch = () => {
     if (page === "chat" && activeStudio) {
       setResearchReturnPage("chat");
+    } else if (page === "studio-workspace") {
+      setResearchReturnPage("studio-workspace");
     } else {
       setResearchReturnPage("home");
       setActiveStudio(findStudio("research"));
@@ -648,6 +660,22 @@ export default function App() {
     );
   }
 
+  if (page === "studio-workspace" && workspaceStudioId) {
+    return (
+      <main className="nyx-app">
+        <StudioWorkspace
+          studioId={workspaceStudioId}
+          onBack={() => setPage("studio")}
+        />
+
+        <BottomNavigation
+          page="studio"
+          onNavigate={navigate}
+        />
+      </main>
+    );
+  }
+
   if (page === "chat" && activeStudio) {
     const StudioIcon = activeStudio.icon;
     const hasMessages = (currentConversation?.messages || []).length > 0;
@@ -863,7 +891,7 @@ export default function App() {
               <StudioCard
                 key={studio.id}
                 studio={studio}
-                onClick={() => startConversation(studio)}
+                onClick={() => openStudioWorkspace(studio)}
               />
             ))}
           </div>
