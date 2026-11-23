@@ -1,17 +1,47 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
+// ======================================================
+// NYX CORE — CONFIGURATION
+// ======================================================
+
+const GROQ_MODEL = "openai/gpt-oss-120b";
+const BACKUP_MODEL = "openrouter/free";
+
+const MAX_MESSAGE_LENGTH = 12000;
+const MAX_STUDIO_CONTEXT = 6000;
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_HISTORY_ITEM_LENGTH = 4000;
+const MAX_MEMORY_ITEMS = 30;
+const MAX_MEMORY_UPDATES = 8;
+const MAX_DELIVERABLES = 20;
+
+const ALLOWED_MEMORY_TYPES = [
+  "project",
+  "character",
+  "world",
+  "plot",
+  "style",
+  "preference",
+  "research",
+  "continuity",
+  "manual",
+] as const;
+
+type MemoryType = typeof ALLOWED_MEMORY_TYPES[number];
+
+type SupabaseClient = ReturnType<typeof createClient>;
+
+const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const GROQ_MODEL = "openai/gpt-oss-120b";
-const BACKUP_MODEL = "openrouter/free";
-const MAX_MESSAGE_LENGTH = 12000;
-const MAX_STUDIO_CONTEXT = 6000;
+// ======================================================
+// ALL 12 NYX STUDIOS
+// ======================================================
 
 type Studio = {
   id: string;
@@ -26,186 +56,314 @@ const STUDIOS: Studio[] = [
   {
     id: "film",
     name: "Film Studio",
-    role: "Film director and production specialist",
+    role: "Film and visual storytelling",
     responsibilities: [
-      "film concepts and creative direction",
-      "screenplays, scripts and scene development",
-      "storyboards and shot planning",
-      "cinematography, lighting and camera language",
-      "production planning and continuity",
-      "editing plans and post-production",
+      "Film concepts and original scripts",
+      "Scenes, storyboards and shot planning",
+      "Cinematography and visual direction",
+      "Production planning",
+      "Film research and visual references",
     ],
-    keywords: /\b(film|movie|cinema|screenplay|screen play|scene|shot list|storyboard|short film|feature film|documentary|trailer)\b/i,
-    dependencies: ["books", "characters", "voice", "music", "audio"],
+    keywords:
+      /\b(film|movie|cinema|scene|screenplay|shot|camera|director|filmmaking)\b/i,
+    dependencies: [
+      "characters",
+      "books",
+      "voice",
+      "research",
+      "music",
+      "audio",
+    ],
   },
   {
     id: "music",
     name: "Music Studio",
-    role: "Composer, songwriter and music producer",
+    role: "Original music creation",
     responsibilities: [
-      "songwriting and lyrics",
-      "melody, harmony and composition",
-      "genres, rhythms and arrangements",
-      "instrumentation and production direction",
-      "original music concepts",
-      "music structure and revisions",
+      "Original songs and lyrics",
+      "Melodies and arrangements",
+      "Genres and musical direction",
+      "African and global music styles",
+      "Music production planning",
     ],
-    keywords: /\b(music|song|songs|beat|beats|lyrics|melody|instrumental|composer|composition|album|producer|gengetone|mugithi|urbantone|afrobeats|soundtrack)\b/i,
-    dependencies: ["audio", "voice"],
+    keywords:
+      /\b(music|song|beat|melody|lyrics|instrumental|gengetone|urbantone|mugithi|afrobeats)\b/i,
+    dependencies: ["voice", "audio", "research"],
   },
   {
     id: "books",
     name: "Book Studio",
-    role: "Author, editor and publishing specialist",
+    role: "Book writing, editing and publishing",
     responsibilities: [
-      "original books and storytelling",
-      "novels, nonfiction and short stories",
-      "chapter planning and development",
-      "professional editing and proofreading",
-      "plot, pacing and character continuity",
-      "book formatting and publishing preparation",
+      "Book concepts and outlines",
+      "Chapter writing and editing",
+      "Character and plot continuity",
+      "Book formatting and preparation",
+      "Publishing and export preparation",
     ],
-    keywords: /\b(book|novel|novels|chapter|chapters|story|stories|write a|rewrite|manuscript|proofread|edit my book|publisher|publishing|ebook|e-book)\b/i,
-    dependencies: ["characters", "research", "audiobooks"],
+    keywords:
+      /\b(book|novel|chapter|story|fiction|nonfiction|author|manuscript|publish|writing)\b/i,
+    dependencies: [
+      "characters",
+      "research",
+      "voice",
+      "audiobooks",
+    ],
   },
   {
     id: "voice",
     name: "Voice Studio",
-    role: "Voice director and dialogue specialist",
+    role: "Voice creation and production",
     responsibilities: [
-      "character voice design",
-      "dialogue delivery and performance",
-      "tone, pitch, accent and pacing direction",
-      "voice casting and narration direction",
-      "emotional delivery",
-      "voice continuity and recording preparation",
+      "Voice direction and profiles",
+      "Distinct character dialogue voices",
+      "Narration and voice-over",
+      "Voice recording workflows",
+      "Consent and voice-rights safeguards",
     ],
-    keywords: /\b(voice|voices|voiceover|voice over|dialogue|dialog|accent|narrator|narration|character speaking|speech|dub|dubbing)\b/i,
-    dependencies: ["audio", "characters"],
+    keywords:
+      /\b(voice|voiceover|voice-over|narration|accent|dialogue|speaking|recording)\b/i,
+    dependencies: ["audio", "characters", "research"],
   },
   {
     id: "games",
     name: "Games Studio",
-    role: "Game designer and interactive experience specialist",
+    role: "Game design and development",
     responsibilities: [
-      "game concepts and design documents",
-      "gameplay mechanics and rules",
-      "levels, missions and progression",
-      "game characters and worlds",
-      "user interaction and interface planning",
-      "testing, balancing and export planning",
+      "Game concepts and mechanics",
+      "Playable game planning",
+      "Characters and environments",
+      "Game stories and levels",
+      "Testing and export preparation",
     ],
-    keywords: /\b(game|games|gaming|video game|playable|gameplay|level design|mission|quest|multiplayer|puzzle game|mobile game|3d game|2d game)\b/i,
-    dependencies: ["characters", "audio", "animation"],
+    keywords:
+      /\b(game|gaming|playable|level|gameplay|quest|player|multiplayer|video game)\b/i,
+    dependencies: [
+      "characters",
+      "animation",
+      "audio",
+      "music",
+      "research",
+    ],
   },
   {
     id: "marketing",
     name: "Marketing Studio",
-    role: "Brand strategist and marketing specialist",
+    role: "Marketing and promotion",
     responsibilities: [
-      "brand identity and positioning",
-      "audience research",
-      "campaign strategy",
-      "advertising concepts and copy",
-      "content calendars and social media",
-      "marketing performance and improvement",
+      "Brand strategy",
+      "Campaign planning",
+      "Audience research",
+      "Promotional content",
+      "Marketing performance ideas",
     ],
-    keywords: /\b(marketing|brand|branding|advert|advertising|campaign|customers|audience|social media|promotion|launch|sales copy|business promotion|product launch)\b/i,
-    dependencies: ["research", "film", "characters"],
+    keywords:
+      /\b(marketing|advert|advertising|campaign|brand|promotion|audience|social media|launch)\b/i,
+    dependencies: [
+      "film",
+      "music",
+      "research",
+      "characters",
+    ],
   },
   {
     id: "characters",
-    name: "Characters Studio",
-    role: "Character creator and development specialist",
+    name: "Character Studio",
+    role: "Character creation and development",
     responsibilities: [
-      "character concepts and visual direction",
-      "personality and motivations",
-      "backstories and relationships",
-      "appearance and costume direction",
-      "character development and continuity",
-      "character sheets and reference documents",
+      "Character personalities",
+      "Character histories and relationships",
+      "Appearance and visual references",
+      "Character dialogue",
+      "Character continuity",
     ],
-    keywords: /\b(character|characters|hero|villain|protagonist|antagonist|mascot|avatar|personality design|character design|backstory|fictional person)\b/i,
-    dependencies: ["books", "voice", "animation"],
+    keywords:
+      /\b(character|personality|protagonist|antagonist|villain|hero|backstory|cast|persona)\b/i,
+    dependencies: [
+      "books",
+      "film",
+      "voice",
+      "animation",
+      "research",
+    ],
   },
   {
     id: "audio",
     name: "Audio Studio",
-    role: "Sound designer and audio production specialist",
+    role: "Sound and audio production",
     responsibilities: [
-      "sound effects and soundscapes",
-      "audio editing and mixing plans",
-      "sound design and ambience",
-      "audio cleanup and mastering direction",
-      "synchronisation and sound continuity",
-      "audio delivery preparation",
+      "Sound effects",
+      "Audio editing plans",
+      "Sound design",
+      "Atmosphere and ambience",
+      "Audio production workflows",
     ],
-    keywords: /\b(audio|sound|sound effect|sound effects|mixing|mastering|ambience|ambiance|foley|podcast|recording|background sound|sfx)\b/i,
-    dependencies: ["voice", "music"],
+    keywords:
+      /\b(audio|sound|sound effect|sfx|ambience|soundscape|mixing|mastering)\b/i,
+    dependencies: [
+      "music",
+      "voice",
+      "film",
+      "animation",
+    ],
   },
   {
     id: "animation",
     name: "Animation Studio",
-    role: "Animation director and motion specialist",
+    role: "Animation and motion creation",
     responsibilities: [
-      "animation concepts and visual development",
-      "movement and performance",
-      "storyboards and animatics",
-      "2D and 3D animation planning",
-      "timing, transitions and visual continuity",
-      "rendering and export preparation",
+      "Animation concepts",
+      "Character movement",
+      "Storyboards",
+      "Motion and scene planning",
+      "Animation production workflows",
     ],
-    keywords: /\b(animation|animated|animate|cartoon|motion graphics|2d animation|3d animation|animatic|character movement|visual effects|vfx)\b/i,
-    dependencies: ["characters", "voice", "audio", "music"],
+    keywords:
+      /\b(animation|animate|animated|cartoon|motion|3d|2d|frame|storyboard)\b/i,
+    dependencies: [
+      "characters",
+      "film",
+      "audio",
+      "music",
+      "research",
+    ],
   },
   {
     id: "comedy",
     name: "Comedy Studio",
-    role: "Comedy writer and performance specialist",
+    role: "Comedy and humorous storytelling",
     responsibilities: [
-      "jokes and comedic concepts",
-      "sketches and comedy scripts",
-      "punchlines and timing",
-      "comic characters and situations",
-      "satire and observational comedy",
-      "performance and revision",
+      "Comedy writing",
+      "Sketches and short scenes",
+      "Jokes and comedic dialogue",
+      "Characters and comedic timing",
+      "Comedy research and references",
     ],
-    keywords: /\b(comedy|comedian|funny|joke|jokes|sketch|skit|satire|parody|punchline|stand.?up|humour|humor)\b/i,
-    dependencies: ["books", "characters", "voice", "film"],
+    keywords:
+      /\b(comedy|funny|joke|humour|humor|sketch|satire|parody|stand.?up)\b/i,
+    dependencies: [
+      "characters",
+      "film",
+      "books",
+      "voice",
+    ],
   },
   {
     id: "audiobooks",
     name: "Audiobook Studio",
-    role: "Audiobook producer and narration coordinator",
+    role: "Audiobook creation and production",
     responsibilities: [
-      "book-to-audio preparation",
-      "chapter-by-chapter production",
-      "narrator and character voice planning",
-      "dialogue voice differentiation",
-      "audio quality and consistency",
-      "chapter assembly and export preparation",
+      "Chapter-by-chapter narration",
+      "Distinct character dialogue voices",
+      "Narrator selection and direction",
+      "Audio quality planning",
+      "Audiobook export preparation",
     ],
-    keywords: /\b(audiobook|audio book|audio books|book narration|read my book aloud|chapter narration|spoken book)\b/i,
-    dependencies: ["books", "voice", "audio"],
+    keywords:
+      /\b(audiobook|audio book|chapter narration|book narration|narrate my book)\b/i,
+    dependencies: [
+      "books",
+      "voice",
+      "audio",
+      "characters",
+    ],
   },
   {
     id: "research",
     name: "Research Studio",
-    role: "Researcher and discovery specialist",
+    role: "Research and discovery",
     responsibilities: [
-      "reference and source discovery",
-      "fact checking and verification",
-      "market and audience research",
-      "creative trend and genre research",
-      "competitor and industry analysis",
-      "evidence evaluation and research summaries",
+      "Fact-finding and verification",
+      "Creative references",
+      "Trends and audience discovery",
+      "Genre and style research",
+      "Research support for every studio",
     ],
-    keywords: /\b(research|investigate|fact.?check|verify|look up|search online|search the web|find sources|citations|statistics|market research|competitors|industry trends|references|discover information)\b/i,
+    keywords:
+      /\b(research|investigate|verify|sources|references|facts|trends|discover|latest information)\b/i,
     dependencies: [],
   },
 ];
 
-function jsonResponse(data: unknown, status = 200) {
+// ======================================================
+// SHARED DATA TYPES
+// ======================================================
+
+type MemoryApprovalStatus =
+  | "creator-stated"
+  | "creator-confirmed"
+  | "assistant-proposed"
+  | "draft";
+
+type MemoryUpdate = {
+  type: MemoryType;
+  title: string;
+  content: Record<string, unknown>;
+  approvalStatus: MemoryApprovalStatus;
+  evidence?: string;
+};
+
+type DeliverableStatus =
+  | "ready"
+  | "planned"
+  | "requires_engine";
+
+type Deliverable = {
+  studioId: string;
+  type: string;
+  title: string;
+  description: string;
+  status: DeliverableStatus;
+};
+
+type MemoryAction =
+  | "list"
+  | "create"
+  | "update"
+  | "delete"
+  | "delete_all";
+
+type MemoryActionRequest = {
+  action: MemoryAction;
+  memoryId?: string;
+  projectId?: string | null;
+  studio?: string;
+  memoryType?: MemoryType;
+  title?: string;
+  content?: Record<string, unknown>;
+};
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type AIResult = {
+  content: string;
+  provider: string;
+  model: string;
+};
+
+type Orchestration = {
+  leadStudio: string;
+  supportingStudios: string[];
+  responsibilities: Record<string, string[]>;
+};
+
+type ParsedNYXOutput = {
+  response: string;
+  deliverables: Deliverable[];
+  memoryUpdates: MemoryUpdate[];
+};
+
+// ======================================================
+// BASIC RESPONSE HELPERS
+// ======================================================
+
+function jsonResponse(
+  data: Record<string, unknown>,
+  status = 200,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -215,636 +373,1667 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
-function decodeHtmlEntities(value: string): string {
+function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+// ======================================================
+// SAFE TEXT AND CONTENT
+// ======================================================
+
+function safeText(
+  value: unknown,
+  maxLength = 2000,
+): string {
+  if (typeof value !== "string") return "";
+
   return value
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#(\d+);/g, (match, code) => {
-      try {
-        return String.fromCodePoint(Number(code));
-      } catch {
-        return match;
-      }
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
-      try {
-        return String.fromCodePoint(parseInt(code, 16));
-      } catch {
-        return match;
-      }
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function safeContent(
+  value: unknown,
+): Record<string, unknown> {
+  if (!isPlainObject(value)) return {};
+
+  try {
+    const serialized = JSON.stringify(value);
+
+    if (
+      !serialized ||
+      serialized.length > 12000
+    ) {
+      return {};
+    }
+
+    const parsed: unknown = JSON.parse(serialized);
+
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// ======================================================
+// STUDIO LOOKUP
+// ======================================================
+
+function getStudio(
+  studioId: unknown,
+): Studio | null {
+  if (typeof studioId !== "string") return null;
+
+  return STUDIOS.find(
+    (studio) => studio.id === studioId,
+  ) ?? null;
+}
+
+function getStudioByName(
+  name: unknown,
+): Studio | null {
+  if (typeof name !== "string") return null;
+
+  const normalized = name.trim().toLowerCase();
+
+  return STUDIOS.find(
+    (studio) =>
+      studio.id === normalized ||
+      studio.name.toLowerCase() === normalized,
+  ) ?? null;
+}
+
+// ======================================================
+// MESSAGE VALIDATION
+// ======================================================
+
+function validateMessage(
+  value: unknown,
+): string {
+  if (typeof value !== "string") {
+    throw new Error("Please enter a valid message.");
+  }
+
+  const message = value.trim();
+
+  if (!message) {
+    throw new Error("Please enter a message for NYX.");
+  }
+
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(
+      `Your message exceeds the ${MAX_MESSAGE_LENGTH} character limit.`,
+    );
+  }
+
+  return message;
+}
+
+// ======================================================
+// PROJECT ID VALIDATION
+// ======================================================
+
+function validateProjectId(
+  value: unknown,
+): string | null {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error("Invalid project identifier.");
+  }
+
+  const projectId = value.trim();
+
+  if (
+    projectId.length === 0 ||
+    projectId.length > 128 ||
+    !/^[a-zA-Z0-9_-]+$/.test(projectId)
+  ) {
+    throw new Error("Invalid project identifier.");
+  }
+
+  return projectId;
+}
+
+// ======================================================
+// MEMORY TYPE VALIDATION
+// ======================================================
+
+function validateMemoryType(
+  value: unknown,
+): MemoryType {
+  if (
+    typeof value !== "string" ||
+    !ALLOWED_MEMORY_TYPES.includes(value as MemoryType)
+  ) {
+    throw new Error("Invalid memory type.");
+  }
+
+  return value as MemoryType;
+}
+
+// ======================================================
+// CONVERSATION HISTORY VALIDATION
+// ======================================================
+
+function buildLimitedHistory(
+  value: unknown,
+): ChatMessage[] {
+  if (!Array.isArray(value)) return [];
+
+  const history: ChatMessage[] = [];
+
+  for (const item of value.slice(-MAX_HISTORY_MESSAGES)) {
+    if (!isPlainObject(item)) continue;
+
+    if (
+      item.role !== "user" &&
+      item.role !== "assistant"
+    ) {
+      continue;
+    }
+
+    const content = safeText(
+      item.content,
+      MAX_HISTORY_ITEM_LENGTH,
+    );
+
+    if (!content) continue;
+
+    history.push({
+      role: item.role,
+      content,
     });
+  }
+
+  return history;
 }
 
-function cleanResearchText(value: string): string {
-  return decodeHtmlEntities(value)
-    .replace(/\\([*_~`|#])/g, "$1")
-    .replace(/【\s*\d+†L\d+(?:[-–]L?\d+)?】/g, "")
-    .replace(/〖\s*\d+†L\d+(?:[-–]L?\d+)?〗/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+// ======================================================
+// MEMORY DATABASE TYPES
+// ======================================================
+
+type MemoryRecord = {
+  id: string;
+  user_id: string;
+  project_id: string | null;
+  studio: string | null;
+  memory_type: string;
+  title: string;
+  content: Record<string, unknown>;
+  source_url?: string | null;
+  source_title?: string | null;
+  published_at?: string | null;
+  researched_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type MemorySettings = {
+  user_id: string;
+  auto_save_enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+// ======================================================
+// MEMORY SETTINGS
+// ======================================================
+
+async function getMemorySettings(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MemorySettings> {
+  const { data, error } = await supabase
+    .from("nyx_memory_settings")
+    .select("user_id, auto_save_enabled, created_at, updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("NYX could not load your memory settings.");
+  }
+
+  if (data) {
+    return data as MemorySettings;
+  }
+
+  const { data: created, error: insertError } = await supabase
+    .from("nyx_memory_settings")
+    .insert({
+      user_id: userId,
+      auto_save_enabled: true,
+    })
+    .select("user_id, auto_save_enabled, created_at, updated_at")
+    .single();
+
+  if (!insertError && created) {
+    return created as MemorySettings;
+  }
+
+  // Another request may have created the settings row at the same time.
+  const { data: existing, error: retryError } = await supabase
+    .from("nyx_memory_settings")
+    .select("user_id, auto_save_enabled, created_at, updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!retryError && existing) {
+    return existing as MemorySettings;
+  }
+
+  throw new Error("NYX could not initialize your memory settings.");
 }
 
-function removeModelWrittenSources(value: string): string {
-  return value
-    .replace(
-      /\n\s*(?:#{1,3}\s*)?(?:\*\*)?SOURCES?(?:\*\*)?\s*:?\s*[\s\S]*$/i,
-      "",
+async function updateMemorySettings(
+  supabase: SupabaseClient,
+  userId: string,
+  autoSaveEnabled: boolean,
+): Promise<MemorySettings> {
+  const { data, error } = await supabase
+    .from("nyx_memory_settings")
+    .upsert(
+      {
+        user_id: userId,
+        auto_save_enabled: autoSaveEnabled,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
     )
-    .trim();
+    .select("user_id, auto_save_enabled, created_at, updated_at")
+    .single();
+
+  if (error || !data) {
+    throw new Error("NYX could not update your memory settings.");
+  }
+
+  return data as MemorySettings;
 }
 
-function extractBrowserSources(aiMessage: any) {
-  const executedTools = Array.isArray(aiMessage?.executed_tools)
-    ? aiMessage.executed_tools
-    : [];
+// ======================================================
+// MEMORY CONTEXT FOR NYX
+// ======================================================
 
-  const browserResults = executedTools.flatMap((tool: any) =>
-    Array.isArray(tool?.browser_results) ? tool.browser_results : []
+function buildMemoryContext(
+  memories: MemoryRecord[],
+): string {
+  if (!memories.length) {
+    return "No saved creator memories are available for this context.";
+  }
+
+  const sections = memories.map((memory, index) => {
+    const content = safeContent(memory.content);
+
+    return [
+      `Memory ${index + 1}`,
+      `Type: ${safeText(memory.memory_type, 50)}`,
+      `Title: ${safeText(memory.title, 200)}`,
+      `Studio: ${safeText(memory.studio || "general", 100)}`,
+      `Details: ${JSON.stringify(content).slice(0, 1800)}`,
+    ].join("\n");
+  });
+
+  return sections.join("\n\n").slice(0, 16000);
+}
+
+// ======================================================
+// LIST CREATOR MEMORIES
+// ======================================================
+
+async function listCreatorMemories(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string | null = null,
+): Promise<MemoryRecord[]> {
+  let query = supabase
+    .from("nyx_shared_memory")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+    .limit(MAX_MEMORY_ITEMS);
+
+  // Without a project filter, return the creator's saved memories.
+  // With a project filter, return that project's memories and
+  // creator-wide memories.
+  if (projectId !== null) {
+    const [projectResult, globalResult] = await Promise.all([
+      supabase
+        .from("nyx_shared_memory")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("project_id", projectId)
+        .order("updated_at", { ascending: false })
+        .limit(MAX_MEMORY_ITEMS),
+
+      supabase
+        .from("nyx_shared_memory")
+        .select("*")
+        .eq("user_id", userId)
+        .is("project_id", null)
+        .order("updated_at", { ascending: false })
+        .limit(MAX_MEMORY_ITEMS),
+    ]);
+
+    if (projectResult.error || globalResult.error) {
+      throw new Error("NYX could not load your saved memories.");
+    }
+
+    const combined = [
+      ...((projectResult.data ?? []) as MemoryRecord[]),
+      ...((globalResult.data ?? []) as MemoryRecord[]),
+    ];
+
+    const unique = new Map<string, MemoryRecord>();
+
+    for (const memory of combined) {
+      unique.set(memory.id, memory);
+    }
+
+    return Array.from(unique.values())
+      .sort((a, b) =>
+        new Date(b.updated_at).getTime() -
+        new Date(a.updated_at).getTime()
+      )
+      .slice(0, MAX_MEMORY_ITEMS);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error("NYX could not load your saved memories.");
+  }
+
+  return (data ?? []) as MemoryRecord[];
+}
+
+// ======================================================
+// RETRIEVE MEMORIES FOR A PROJECT AND STUDIO
+// ======================================================
+
+async function retrieveProjectMemories(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string | null,
+  studioId: string,
+): Promise<MemoryRecord[]> {
+  const memories = await listCreatorMemories(
+    supabase,
+    userId,
+    projectId,
   );
 
-  const seen = new Set<string>();
-  const sources: { title: string; publisher: string; url: string }[] = [];
+  const relevant = memories.filter((memory) => {
+    const memoryStudio = memory.studio || "general";
 
-  for (const item of browserResults) {
-    if (typeof item?.url !== "string") continue;
+    return (
+      memoryStudio === "general" ||
+      memoryStudio === studioId
+    );
+  });
+
+  return relevant.slice(0, MAX_MEMORY_ITEMS);
+}
+
+// ======================================================
+// CREATE A CREATOR MEMORY
+// ======================================================
+
+async function createCreatorMemory(
+  supabase: SupabaseClient,
+  userId: string,
+  input: {
+    projectId?: string | null;
+    studio?: string;
+    memoryType: MemoryType;
+    title: string;
+    content: Record<string, unknown>;
+  },
+): Promise<MemoryRecord> {
+  const projectId = validateProjectId(
+    input.projectId ?? null,
+  );
+
+  const title = safeText(input.title, 200);
+  const content = safeContent(input.content);
+
+  if (!title) {
+    throw new Error("A memory title is required.");
+  }
+
+  if (!Object.keys(content).length) {
+    throw new Error("Please provide valid memory details.");
+  }
+
+  const studio = input.studio
+    ? safeText(input.studio, 100)
+    : "general";
+
+  if (
+    studio !== "general" &&
+    !getStudio(studio)
+  ) {
+    throw new Error("Invalid studio for this memory.");
+  }
+
+  const { data, error } = await supabase
+    .from("nyx_shared_memory")
+    .insert({
+      user_id: userId,
+      project_id: projectId,
+      studio,
+      memory_type: input.memoryType,
+      title,
+      content,
+      updated_at: new Date().toISOString(),
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error("NYX could not save this memory.");
+  }
+
+  return data as MemoryRecord;
+}
+
+// ======================================================
+// UPDATE A CREATOR MEMORY
+// ======================================================
+
+async function updateCreatorMemory(
+  supabase: SupabaseClient,
+  userId: string,
+  memoryId: string,
+  updates: {
+    projectId?: string | null;
+    studio?: string;
+    memoryType?: MemoryType;
+    title?: string;
+    content?: Record<string, unknown>;
+  },
+): Promise<MemoryRecord> {
+  const safeId = safeText(memoryId, 128);
+
+  if (!safeId) {
+    throw new Error("A valid memory identifier is required.");
+  }
+
+  const changes: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.projectId !== undefined) {
+    changes.project_id = validateProjectId(updates.projectId);
+  }
+
+  if (updates.studio !== undefined) {
+    const studio = safeText(updates.studio, 100);
+
+    if (studio !== "general" && !getStudio(studio)) {
+      throw new Error("Invalid studio for this memory.");
+    }
+
+    changes.studio = studio;
+  }
+
+  if (updates.memoryType !== undefined) {
+    changes.memory_type = validateMemoryType(updates.memoryType);
+  }
+
+  if (updates.title !== undefined) {
+    const title = safeText(updates.title, 200);
+
+    if (!title) {
+      throw new Error("A memory title cannot be empty.");
+    }
+
+    changes.title = title;
+  }
+
+  if (updates.content !== undefined) {
+    const content = safeContent(updates.content);
+
+    if (!Object.keys(content).length) {
+      throw new Error("Please provide valid memory details.");
+    }
+
+    changes.content = content;
+  }
+
+  const { data, error } = await supabase
+    .from("nyx_shared_memory")
+    .update(changes)
+    .eq("id", safeId)
+    .eq("user_id", userId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("NYX could not update this memory.");
+  }
+
+  if (!data) {
+    throw new Error("Memory not found or you do not have permission to edit it.");
+  }
+
+  return data as MemoryRecord;
+}
+
+// ======================================================
+// DELETE ONE CREATOR MEMORY
+// ======================================================
+
+async function deleteCreatorMemory(
+  supabase: SupabaseClient,
+  userId: string,
+  memoryId: string,
+): Promise<boolean> {
+  const safeId = safeText(memoryId, 128);
+
+  if (!safeId) {
+    throw new Error("A valid memory identifier is required.");
+  }
+
+  const { data, error } = await supabase
+    .from("nyx_shared_memory")
+    .delete()
+    .eq("id", safeId)
+    .eq("user_id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("NYX could not delete this memory.");
+  }
+
+  if (!data) {
+    throw new Error("Memory not found or you do not have permission to delete it.");
+  }
+
+  return true;
+}
+
+// ======================================================
+// DELETE ALL MEMORIES BELONGING TO ONE CREATOR
+// ======================================================
+
+async function deleteAllCreatorMemories(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("nyx_shared_memory")
+    .delete()
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) {
+    throw new Error("NYX could not delete your memories.");
+  }
+
+  return Array.isArray(data) ? data.length : 0;
+}
+
+// ======================================================
+// MEMORY ACTION HANDLER
+// ======================================================
+
+async function handleMemoryAction(
+  supabase: SupabaseClient,
+  userId: string,
+  request: MemoryActionRequest,
+): Promise<Record<string, unknown>> {
+  const projectId = validateProjectId(
+    request.projectId ?? null,
+  );
+
+  switch (request.action) {
+    case "list": {
+      const memories = await listCreatorMemories(
+        supabase,
+        userId,
+        projectId,
+      );
+
+      return {
+        success: true,
+        memories,
+        count: memories.length,
+      };
+    }
+
+    case "create": {
+      if (!request.memoryType) {
+        throw new Error("Please select a memory type.");
+      }
+
+      const memory = await createCreatorMemory(
+        supabase,
+        userId,
+        {
+          projectId,
+          studio: request.studio,
+          memoryType: validateMemoryType(request.memoryType),
+          title: safeText(request.title, 200),
+          content: safeContent(request.content),
+        },
+      );
+
+      return {
+        success: true,
+        memory,
+      };
+    }
+
+    case "update": {
+      if (!request.memoryId) {
+        throw new Error("A memory identifier is required.");
+      }
+
+      const memory = await updateCreatorMemory(
+        supabase,
+        userId,
+        request.memoryId,
+        {
+          projectId: request.projectId,
+          studio: request.studio,
+          memoryType: request.memoryType
+            ? validateMemoryType(request.memoryType)
+            : undefined,
+          title: request.title,
+          content: request.content,
+        },
+      );
+
+      return {
+        success: true,
+        memory,
+      };
+    }
+
+    case "delete": {
+      if (!request.memoryId) {
+        throw new Error("A memory identifier is required.");
+      }
+
+      await deleteCreatorMemory(
+        supabase,
+        userId,
+        request.memoryId,
+      );
+
+      return {
+        success: true,
+        deleted: true,
+      };
+    }
+
+    case "delete_all": {
+      const deletedCount = await deleteAllCreatorMemories(
+        supabase,
+        userId,
+      );
+
+      return {
+        success: true,
+        deleted: true,
+        deletedCount,
+      };
+    }
+
+    default:
+      throw new Error("Unsupported memory action.");
+  }
+}
+
+// ======================================================
+// MEMORY TITLE NORMALIZATION
+// ======================================================
+
+function normalizeMemoryTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// ======================================================
+// NORMALIZE AI MEMORY SUGGESTIONS
+// ======================================================
+
+function normalizeMemoryUpdates(
+  value: unknown,
+): MemoryUpdate[] {
+  if (!Array.isArray(value)) return [];
+
+  const updates: MemoryUpdate[] = [];
+
+  for (const item of value.slice(0, MAX_MEMORY_UPDATES)) {
+    if (!isPlainObject(item)) continue;
+
+    let type: MemoryType;
 
     try {
-      const parsed = new URL(item.url);
-      if (!["http:", "https:"].includes(parsed.protocol)) continue;
-
-      const url = parsed.toString();
-      if (seen.has(url)) continue;
-      seen.add(url);
-
-      const publisher = parsed.hostname.replace(/^www\./i, "");
-      const title =
-        typeof item.title === "string" && item.title.trim()
-          ? item.title.trim().slice(0, 250)
-          : publisher;
-
-      sources.push({ title, publisher, url });
-      if (sources.length >= 8) break;
+      type = validateMemoryType(item.type);
     } catch {
       continue;
     }
-  }
 
-  return sources;
-}
+    const title = safeText(item.title, 200);
+    const content = safeContent(item.content);
 
-function appendVerifiedSources(
-  response: string,
-  sources: { title: string; publisher: string; url: string }[],
-) {
-  const cleaned = removeModelWrittenSources(response);
-
-  if (!sources.length) {
-    return `${cleaned}\n\n**Source verification:** Groq did not return usable browser source links for this response. Treat specific current claims and statistics as unverified until checked.`;
-  }
-
-  const sourceList = sources.map((source, index) =>
-    `${index + 1}. [${source.title}](${source.url}) — ${source.publisher}`
-  ).join("\n");
-
-  return `${cleaned}\n\n**Sources checked by NYX**\n${sourceList}`;
-}
-
-function isValidHistoryItem(item: any) {
-  return (
-    item &&
-    ["user", "assistant"].includes(item.role) &&
-    typeof item.content === "string"
-  );
-}
-
-function buildLimitedHistory(history: any[]) {
-  const result: { role: string; content: string }[] = [];
-  let remaining = 9000;
-
-  for (const item of history.slice(-8)) {
-    if (remaining <= 0) break;
-
-    const content = item.content.slice(
-      0,
-      Math.min(1800, remaining),
-    );
-
-    if (!content.trim()) continue;
-
-    result.push({ role: item.role, content });
-    remaining -= content.length;
-  }
-
-  return result;
-}
-
-function buildMemoryContext(memories: any[]) {
-  if (!memories.length) return "No saved memories available.";
-
-  return memories.map((memory, index) => {
-    let content = "";
-
-    try {
-      content = typeof memory.content === "string"
-        ? memory.content
-        : JSON.stringify(memory.content ?? {});
-    } catch {
-      content = "";
+    if (!title || !Object.keys(content).length) {
+      continue;
     }
 
-    return [
-      `Memory ${index + 1}:`,
-      `Type: ${String(memory.memory_type ?? "").slice(0, 60)}`,
-      `Title: ${String(memory.title ?? "").slice(0, 150)}`,
-      `Studio: ${String(memory.studio ?? "").slice(0, 80)}`,
-      `Details: ${content.slice(0, 1000)}`,
-    ].join("\n");
-  }).join("\n\n");
-}
+    const allowedStatuses: MemoryApprovalStatus[] = [
+      "creator-stated",
+      "creator-confirmed",
+      "assistant-proposed",
+      "draft",
+    ];
 
-function getStudio(id: string) {
-  return STUDIOS.find((studio) => studio.id === id);
-}
+    const approvalStatus = allowedStatuses.includes(
+      item.approvalStatus as MemoryApprovalStatus,
+    )
+      ? item.approvalStatus as MemoryApprovalStatus
+      : "draft";
 
-function buildOrchestration(
-  message: string,
-  activeStudioId: string,
-  requestedCollaborators: string[],
-  researchRequested: boolean,
-) {
-  const activeStudio = getStudio(activeStudioId);
-
-  const matched = STUDIOS.filter(
-    (studio) =>
-      studio.id !== "research" &&
-      studio.keywords.test(message),
-  );
-
-  let lead = activeStudio || matched[0] || STUDIOS[0];
-
-  // A clearly matching specialist can take the lead
-  // when the open studio is not relevant to the request.
-  if (
-    matched.length > 0 &&
-    (!activeStudio || !activeStudio.keywords.test(message))
-  ) {
-    lead = matched[0];
-  }
-
-  const selected = new Set<string>([lead.id]);
-
-  // Use actual message matches, not every suggested collaborator.
-  for (const studio of matched) {
-    selected.add(studio.id);
-  }
-
-  // Only accept suggested collaborators when the message
-  // also indicates that their expertise is relevant.
-  for (const id of requestedCollaborators) {
-    const studio = getStudio(id);
-
-    if (studio && studio.keywords.test(message)) {
-      selected.add(id);
-    }
-  }
-
-  // Add dependencies only when the request indicates relevance.
-  for (const id of [...selected]) {
-    const studio = getStudio(id);
-    if (!studio) continue;
-
-    for (const dependencyId of studio.dependencies) {
-      const dependency = getStudio(dependencyId);
-
-      if (dependency && dependency.keywords.test(message)) {
-        selected.add(dependencyId);
-      }
-    }
-  }
-
-  if (researchRequested) {
-    selected.add("research");
-  }
-
-  const supportingStudios = [...selected]
-    .filter((id) => id !== lead.id)
-    .map((id) => getStudio(id))
-    .filter((studio): studio is Studio => Boolean(studio))
-    .map((studio) => ({
-      id: studio.id,
-      name: studio.name,
-      role: studio.role,
-      responsibilities: studio.responsibilities,
-    }));
-
-  return {
-    leadStudio: {
-      id: lead.id,
-      name: lead.name,
-      role: lead.role,
-      responsibilities: lead.responsibilities,
-    },
-    supportingStudios,
-    selectedStudioIds: [
-      lead.id,
-      ...supportingStudios.map((studio) => studio.id),
-    ],
-    workflow: [
-      "Understand the creator's intended outcome.",
-      "Choose the appropriate lead studio.",
-      "Coordinate relevant supporting studios.",
-      ...(researchRequested
-        ? ["Research and verify relevant information."]
-        : []),
-      "Create and review the requested work.",
-      "Identify any external production requirements.",
-      "Report completed and pending deliverables honestly.",
-    ],
-    researchNeeded: researchRequested,
-    productionStatus:
-      "Text creation and coordination are available. Media production requires connected production engines.",
-  };
-}
-
-function normalizeDeliverables(items: unknown) {
-  if (!Array.isArray(items)) return [];
-
-  const validTypes = [
-    "text",
-    "script",
-    "lyrics",
-    "chapter",
-    "plan",
-    "image",
-    "video",
-    "audio",
-    "animation",
-    "game",
-    "other",
-  ];
-
-  const mediaTypes = [
-    "image",
-    "video",
-    "audio",
-    "animation",
-    "game",
-  ];
-
-  return items.slice(0, 12).map((item: any) => {
-    const studio = STUDIOS.find(
-      (entry) => entry.id === item?.studioId,
-    );
-
-    const type = validTypes.includes(item?.type)
-      ? item.type
-      : "other";
-
-    const requiresExternalEngine =
-      Boolean(item?.requiresExternalEngine) ||
-      mediaTypes.includes(type);
-
-    let status = [
-      "created",
-      "planned",
-      "requires_external_engine",
-    ].includes(item?.status)
-      ? item.status
-      : "planned";
-
-    if (requiresExternalEngine) {
-      status = "requires_external_engine";
-    }
-
-    return {
-      title: String(item?.title || "Creative deliverable").slice(0, 160),
-      studioId: studio?.id || "research",
+    updates.push({
       type,
-      status,
-      description: String(item?.description || "").slice(0, 500),
-      requiresExternalEngine,
-    };
-  });
+      title,
+      content,
+      approvalStatus,
+      evidence: safeText(item.evidence, 1000),
+    });
+  }
+
+  return updates;
 }
 
-function parseNYXOutput(raw: string) {
-  const cleaned = raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
+// ======================================================
+// VERIFY MEMORY AGAINST CREATOR-PROVIDED TEXT
+// ======================================================
+
+function buildCreatorEvidenceText(
+  message: string,
+  history: ChatMessage[],
+  studioContext: string,
+): string {
+  const creatorText = [
+    message,
+    ...history
+      .filter((item) => item.role === "user")
+      .map((item) => item.content),
+    studioContext,
+  ];
+
+  return creatorText.join("\n").toLowerCase();
+}
+
+function hasCreatorEvidence(
+  update: MemoryUpdate,
+  evidenceText: string,
+): boolean {
+  if (
+    update.approvalStatus !== "creator-stated" &&
+    update.approvalStatus !== "creator-confirmed"
+  ) {
+    return false;
+  }
+
+  const evidence = safeText(update.evidence, 1000)
+    .toLowerCase()
     .trim();
 
-  try {
-    const parsed = JSON.parse(cleaned);
+  if (evidence.length < 12) {
+    return false;
+  }
 
-    if (typeof parsed.response === "string") {
-      return {
-        response: parsed.response,
-        deliverables: normalizeDeliverables(parsed.deliverables),
-      };
+  return evidenceText.includes(evidence);
+}
+
+// ======================================================
+// AUTOMATIC MEMORY SAVING
+// ======================================================
+
+async function saveAutomaticMemories(
+  supabase: SupabaseClient,
+  userId: string,
+  projectId: string | null,
+  studioId: string,
+  updates: MemoryUpdate[],
+  evidenceText: string,
+): Promise<number> {
+  let savedCount = 0;
+
+  const verifiedUpdates = updates.filter((update) =>
+    hasCreatorEvidence(update, evidenceText)
+  );
+
+  for (const update of verifiedUpdates) {
+    const title = safeText(update.title, 200);
+    const normalizedTitle = normalizeMemoryTitle(title);
+
+    if (!normalizedTitle) continue;
+
+    let existingQuery = supabase
+      .from("nyx_shared_memory")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("studio", studioId)
+      .eq("memory_type", update.type);
+
+    if (projectId === null) {
+      existingQuery = existingQuery.is("project_id", null);
+    } else {
+      existingQuery = existingQuery.eq("project_id", projectId);
     }
-  } catch {
-    // Preserve ordinary text if the model does not return valid JSON.
+
+    const { data: existingRows, error: lookupError } =
+      await existingQuery.limit(100);
+
+    if (lookupError) {
+      continue;
+    }
+
+    const existing = (
+      (existingRows ?? []) as MemoryRecord[]
+    ).find((memory) =>
+      normalizeMemoryTitle(memory.title) === normalizedTitle
+    );
+
+    const newContent = safeContent(update.content);
+
+    if (existing) {
+      const previousContent = safeContent(existing.content);
+
+      const previousStatus = safeText(
+        previousContent.approvalStatus,
+        50,
+      );
+
+      const incomingStatus = update.approvalStatus;
+
+      const previousIsConfirmed =
+        previousStatus === "creator-confirmed";
+
+      const incomingIsConfirmed =
+        incomingStatus === "creator-confirmed";
+
+      const mergedContent = {
+        ...previousContent,
+        ...newContent,
+        approvalStatus:
+          previousIsConfirmed && !incomingIsConfirmed
+            ? "creator-confirmed"
+            : incomingStatus,
+        evidence: update.evidence,
+        lastVerifiedAt: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase
+        .from("nyx_shared_memory")
+        .update({
+          content: mergedContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .eq("user_id", userId);
+
+      if (!updateError) {
+        savedCount++;
+      }
+
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from("nyx_shared_memory")
+      .insert({
+        user_id: userId,
+        project_id: projectId,
+        studio: studioId,
+        memory_type: update.type,
+        title,
+        content: {
+          ...newContent,
+          approvalStatus: update.approvalStatus,
+          evidence: update.evidence,
+          savedAt: new Date().toISOString(),
+        },
+        updated_at: new Date().toISOString(),
+      });
+
+    if (!insertError) {
+      savedCount++;
+    }
+  }
+
+  return savedCount;
+}
+
+// ======================================================
+// MEMORY INSTRUCTIONS FOR NYX
+// ======================================================
+
+function buildMemoryInstructions(): string {
+  return `
+MEMORY RULES:
+
+1. Protect the creator's established facts and project continuity.
+
+2. Distinguish between:
+   - creator-stated: explicitly stated by the creator.
+   - creator-confirmed: explicitly confirmed by the creator.
+   - assistant-proposed: an idea suggested by NYX.
+   - draft: information that is uncertain or incomplete.
+
+3. Never present an assistant-proposed idea as an established fact.
+
+4. Never silently replace established character names, ages,
+   relationships, locations, timelines, events or project facts.
+
+5. When a creator corrects an established fact, respect the
+   correction and use the new information going forward.
+
+6. Do not invent personal preferences, project details,
+   research findings or creator decisions.
+
+7. Only suggest memory updates when they are useful for future
+   conversations and project continuity.
+
+8. Each memory update must include:
+   - type
+   - title
+   - content
+   - approvalStatus
+   - evidence
+
+9. The evidence field must contain an exact, meaningful excerpt
+   from creator-provided text. Never manufacture an excerpt.
+
+10. If you cannot identify exact creator-provided evidence,
+    mark the update as assistant-proposed or draft.
+
+11. Keep separate projects separate. Never transfer a character,
+    plot, setting or decision from one project to another.
+
+12. Creator-wide preferences must only be stored when the
+    creator clearly states or confirms them.
+
+13. Do not save temporary conversation details as permanent
+    memories unless they matter to future work.
+
+14. Never claim that a memory was saved unless the system
+    confirms that the database operation succeeded.
+`;
+}
+
+// ======================================================
+// STUDIO COLLABORATION AND ORCHESTRATION
+// ======================================================
+
+function buildOrchestration(
+  leadStudio: Studio,
+  message: string,
+): Orchestration {
+  const supporting = new Set<string>();
+
+  for (const dependency of leadStudio.dependencies) {
+    const studio = getStudio(dependency);
+
+    if (!studio) continue;
+
+    if (studio.keywords.test(message)) {
+      supporting.add(studio.id);
+    }
+  }
+
+  // Research supports every studio when relevant.
+  const researchRequested =
+    /\b(research|investigate|verify|sources|references|facts|trends|discover|latest information)\b/i
+      .test(message);
+
+  if (
+    researchRequested &&
+    leadStudio.id !== "research"
+  ) {
+    supporting.add("research");
+  }
+
+  supporting.delete(leadStudio.id);
+
+  const responsibilities: Record<string, string[]> = {
+    [leadStudio.id]: leadStudio.responsibilities,
+  };
+
+  for (const studioId of supporting) {
+    const studio = getStudio(studioId);
+
+    if (studio) {
+      responsibilities[studioId] = studio.responsibilities;
+    }
   }
 
   return {
-    response: raw,
-    deliverables: [],
+    leadStudio: leadStudio.id,
+    supportingStudios: Array.from(supporting),
+    responsibilities,
   };
 }
 
-function createSystemPrompt(
-  orchestration: ReturnType<typeof buildOrchestration>,
-  currentDate: string,
-  currentYear: string,
-  memoryContext: string,
-  researchRequested: boolean,
-  studioContext: string,
-  backupMode = false,
-) {
-  const studioDetails = STUDIOS.map((studio) =>
-    `${studio.name} (${studio.id})
-Role: ${studio.role}
-Responsibilities: ${studio.responsibilities.join("; ")}`
-  ).join("\n\n");
+// ======================================================
+// DELIVERABLE VALIDATION
+// ======================================================
 
-  const supportingDetails = orchestration.supportingStudios.length
-    ? orchestration.supportingStudios.map((studio) =>
-      `${studio.name}: ${studio.role}
-Responsibilities: ${studio.responsibilities.join("; ")}`
-    ).join("\n\n")
-    : "No supporting studio has been selected yet.";
+function normalizeDeliverables(
+  value: unknown,
+): Deliverable[] {
+  if (!Array.isArray(value)) return [];
+
+  const deliverables: Deliverable[] = [];
+
+  for (const item of value.slice(0, MAX_DELIVERABLES)) {
+    if (!isPlainObject(item)) continue;
+
+    const studio = getStudio(item.studioId);
+
+    if (!studio) continue;
+
+    const type = safeText(item.type, 80);
+    const title = safeText(item.title, 200);
+    const description = safeText(item.description, 1200);
+
+    if (!type || !title || !description) continue;
+
+    const allowedStatuses: DeliverableStatus[] = [
+      "ready",
+      "planned",
+      "requires_engine",
+    ];
+
+    const status = allowedStatuses.includes(
+      item.status as DeliverableStatus,
+    )
+      ? item.status as DeliverableStatus
+      : "planned";
+
+    deliverables.push({
+      studioId: studio.id,
+      type,
+      title,
+      description,
+      status,
+    });
+  }
+
+  return deliverables;
+}
+
+// ======================================================
+// RESEARCH REQUEST DETECTION
+// ======================================================
+
+function isResearchRequest(message: string): boolean {
+  return /\b(research|investigate|verify|sources|references|facts|trends|discover|latest information|find current|look up)\b/i
+    .test(message);
+}
+
+// ======================================================
+// EXPLICIT MEMORY REQUEST DETECTION
+// ======================================================
+
+function isExplicitMemoryRequest(message: string): boolean {
+  return /\b(remember|save this|store this|keep this in mind|don't forget|do not forget|make this permanent)\b/i
+    .test(message);
+}
+
+// ======================================================
+// SYSTEM PROMPT
+// ======================================================
+
+function createSystemPrompt(args: {
+  studio: Studio;
+  studioContext: string;
+  memoryContext: string;
+  orchestration: Orchestration;
+  researchRequested: boolean;
+}): string {
+  const {
+    studio,
+    studioContext,
+    memoryContext,
+    orchestration,
+    researchRequested,
+  } = args;
 
   return `
-You are NYX CORE: the central intelligence, creative director,
-orchestrator and operations manager of the NYX creative universe.
+You are NYX CORE, the central intelligence of the NYX creative universe.
 
-The creator owns the vision. NYX coordinates the execution.
+You are not a generic chatbot. You are a creative partner that
+understands projects, coordinates specialist studios and protects
+the creator's original vision.
 
-CURRENT DATE: ${currentDate}
-CURRENT YEAR: ${currentYear}
+CURRENT LEAD STUDIO:
+${studio.name}
 
-==================================================
-THE 12 SPECIALIST STUDIOS
-==================================================
+STUDIO PURPOSE:
+${studio.role}
 
-${studioDetails}
+STUDIO RESPONSIBILITIES:
+${JSON.stringify(studio.responsibilities)}
 
-==================================================
-ACTIVE STUDIO CONTEXT
-==================================================
+AVAILABLE COLLABORATION:
+${JSON.stringify(orchestration)}
 
-${studioContext || "No additional active studio context was supplied."}
+CREATOR'S STUDIO CONTEXT:
+${studioContext || "No additional studio context was provided."}
 
-Treat this as information about the current studio and its workflow.
-It does not override the creator's actual request.
-
-==================================================
-CURRENT ORCHESTRATION
-==================================================
-
-LEAD STUDIO:
-${orchestration.leadStudio.name}
-Role: ${orchestration.leadStudio.role}
-
-Responsibilities:
-${orchestration.leadStudio.responsibilities.map((item) => `- ${item}`).join("\n")}
-
-SUPPORTING STUDIOS:
-${supportingDetails}
-
-Selected studio IDs:
-${orchestration.selectedStudioIds.join(", ")}
-
-==================================================
-HOW YOU MUST COORDINATE
-==================================================
-
-1. Understand the creator's actual desired outcome.
-2. Let the most relevant studio lead.
-3. Coordinate supporting studios only when useful.
-4. Do not involve all 12 studios in every request.
-5. Give each participating studio a clear responsibility.
-6. Share relevant characters, story details, styles, assets,
-   project decisions and creator preferences between studios.
-7. Preserve project continuity.
-8. Avoid asking for information already supplied.
-9. Make sensible creative decisions independently.
-10. Ask one important follow-up question at a time when needed.
-11. Do not blindly agree with an idea if there is a better approach.
-12. Explain important trade-offs clearly.
-
-==================================================
-SPECIALIST EXPECTATIONS
-==================================================
-
-FILM:
-Act as a director and screenwriter. Consider story structure,
-scenes, dialogue, cinematography, lighting, shot lists,
-continuity, editing and production needs.
-
-MUSIC:
-Act as a composer and producer. Consider genre, rhythm,
-tempo, lyrics, melody, harmony, instrumentation, arrangement
-and originality. Support global and African regional genres.
-
-BOOKS:
-Act as an author and editor. Support complete books,
-chapters, proofreading, structure, publishing preparation
-and preservation of the author's voice.
-
-VOICE:
-Act as a voice director. Define pitch, tone, accent,
-pacing, emotional delivery and distinct character voices.
-Respect voice consent and rights.
-
-GAMES:
-Act as a game designer. Consider mechanics, controls,
-levels, progression, difficulty, accessibility and platform.
-
-MARKETING:
-Act as a marketing strategist. Consider audience,
-positioning, brand voice, campaigns and performance.
-
-CHARACTERS:
-Maintain character personality, appearance, motivations,
-history, relationships and continuity.
-
-AUDIO:
-Consider sound effects, ambience, recording, editing,
-mixing, mastering and sound quality.
-
-ANIMATION:
-Consider visual development, storyboards, movement,
-timing, keyframes, continuity and rendering needs.
-
-COMEDY:
-Consider premise, timing, setup, punchlines, character
-humour, satire and the intended audience.
-
-AUDIOBOOKS:
-Consider book preparation, chapters, narration,
-distinct dialogue voices, pacing and audio consistency.
-
-RESEARCH:
-Find and evaluate references, sources, facts, trends,
-audiences, genres and industry information.
-
-==================================================
-RESEARCH RULES
-==================================================
-
-Research should support every studio when relevant.
-
-Research requested: ${researchRequested}
-
-${backupMode
-  ? `LIVE RESEARCH IS UNAVAILABLE IN BACKUP MODE.
-Do not claim to have searched the web.
-Do not invent sources, URLs, statistics or publication dates.
-Clearly distinguish general knowledge from verified research.`
-  : `When live research is requested, use the browser_search tool.
-Prefer reliable and original sources.
-Check publication dates and the period covered.
-Distinguish verified facts, estimates and opinions.
-Never invent citations, URLs or quotations.`}
-
-==================================================
-CREATIVE EXECUTION
-==================================================
-
-Do not return a generic plan when you can actually create
-the requested written work.
-
-Create useful scripts, chapters, lyrics, character profiles,
-campaigns, concepts and other text-based deliverables.
-
-Review work for consistency and quality before responding.
-
-==================================================
-PRODUCTION HONESTY
-==================================================
-
-NYX CORE is the intelligence and coordinator.
-
-Do not claim to have rendered a film, generated an image,
-created an audio recording, produced an animation,
-built a playable game or exported a file unless a connected
-production tool actually completed that action.
-
-Groq is an intelligence provider, not a media renderer.
-
-If a production engine is missing, explain what is ready
-and what capability is still required.
-
-==================================================
-SHARED CREATOR MEMORY
-==================================================
-
+SAVED CREATOR MEMORIES:
 ${memoryContext}
 
-Use this information to maintain continuity.
-Respect newer decisions over older ones.
-Do not ask for information already available.
-Never expose another user's memories.
+${buildMemoryInstructions()}
 
-==================================================
-PERSONALITY
-==================================================
+CREATIVE BEHAVIOUR:
 
-Be warm, intelligent, natural, imaginative and direct.
-Adapt to the creator's mood and the seriousness of the task.
-Use humour only when appropriate.
-Avoid robotic repetition and unnecessary questions.
+- Understand the creator's actual request before responding.
+- Do not force unnecessary questions.
+- Ask one useful follow-up question when essential information
+  is missing.
+- Preserve the creator's writing voice and creative direction.
+- Give practical, usable outputs rather than vague promises.
+- Be warm, natural, intelligent and emotionally aware.
+- Do not pretend to have created files, videos, music, games
+  or other media when no production engine has actually done so.
+- Distinguish planning from completed production.
+- Do not invent tools, connected services or completed actions.
+- Do not claim that supporting studios performed separate
+  AI executions. You are coordinating their responsibilities
+  within this request.
 
-==================================================
-DELIVERABLE TRACKING
-==================================================
+PROJECT CONTINUITY:
 
-Return ONLY a valid JSON object with these exact keys:
+- Treat saved memories as established project context.
+- Preserve names, ages, relationships, settings, timelines,
+  events and important creator decisions.
+- If new instructions conflict with saved facts, ask for
+  clarification when it is unclear whether the creator intends
+  a correction or a different version.
+- Never mix details from unrelated projects.
+
+RESEARCH:
+
+${
+  researchRequested
+    ? `The creator has requested research.
+Do not invent sources, URLs, dates, statistics or findings.
+No verified live research provider is currently connected.
+Explain that live verification is unavailable and provide
+clearly labelled general knowledge only when appropriate.`
+    : `Do not claim that live research has been conducted.
+Research and discovery can be planned when useful.`
+}
+
+PRODUCTION:
+
+- A deliverable marked "ready" must actually be available
+  as a completed output in the response.
+- Use "planned" for work that has only been described.
+- Use "requires_engine" when an external rendering,
+  generation or production service is needed.
+- Never pretend Groq itself renders video, generates audio,
+  compiles games or exports finished books.
+
+MEMORY OUTPUT:
+
+Suggest only genuinely useful memory updates.
+Every update must contain an exact evidence excerpt from
+creator-provided text.
+Do not invent evidence.
+Use "creator-stated" only when the creator explicitly stated
+the fact in the provided text.
+Use "creator-confirmed" only when the creator explicitly
+confirmed the fact.
+Use "assistant-proposed" for your own suggestions.
+Use "draft" when uncertain.
+
+OUTPUT FORMAT:
+
+Return one valid JSON object only.
+
+Required structure:
 
 {
-  "response": "Complete natural-language answer in Markdown",
+  "response": "Your complete natural-language answer",
   "deliverables": [
     {
-      "title": "Deliverable title",
       "studioId": "valid studio ID",
-      "type": "text, script, lyrics, chapter, plan, image, video, audio, animation, game, or other",
-      "status": "created, planned, or requires_external_engine",
-      "description": "Short description",
-      "requiresExternalEngine": false
+      "type": "deliverable type",
+      "title": "deliverable title",
+      "description": "what it contains",
+      "status": "ready, planned, or requires_engine"
+    }
+  ],
+  "memoryUpdates": [
+    {
+      "type": "valid memory type",
+      "title": "short memory title",
+      "content": {
+        "fact": "the actual creator-provided fact"
+      },
+      "approvalStatus": "creator-stated, creator-confirmed, assistant-proposed, or draft",
+      "evidence": "exact excerpt from creator-provided text"
     }
   ]
 }
 
-Only mark written work as created when it is actually included
-in the response.
-
-Mark future work as planned.
-
-Mark image, video, audio, animation and game production as
-requires_external_engine unless a connected production tool
-actually completed it.
-
-Never invent completed deliverables, exports or downloads.
-
-Use an empty array when there are no deliverables.
-
-Return valid JSON only. Do not use Markdown code fences
-around the JSON object.
+Return empty arrays when there are no deliverables or memory updates.
+Do not wrap the JSON in Markdown code fences.
 `;
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+// ======================================================
+// AI PROVIDER RESPONSE TYPES
+// ======================================================
+
+type ProviderResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+  model?: string;
+};
+
+type ProviderRequestMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+// ======================================================
+// PROVIDER RESPONSE EXTRACTION
+// ======================================================
+
+function extractProviderContent(
+  payload: unknown,
+): string {
+  if (!isPlainObject(payload)) {
+    throw new Error("The AI provider returned an invalid response.");
   }
 
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed." }, 405);
+  const choices = payload.choices;
+
+  if (!Array.isArray(choices) || !choices.length) {
+    throw new Error("The AI provider returned no answer.");
+  }
+
+  const firstChoice = choices[0];
+
+  if (!isPlainObject(firstChoice)) {
+    throw new Error("The AI provider returned an invalid answer.");
+  }
+
+  const message = firstChoice.message;
+
+  if (!isPlainObject(message)) {
+    throw new Error("The AI provider returned an empty answer.");
+  }
+
+  const content = message.content;
+
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("The AI provider returned an empty answer.");
+  }
+
+  return content.trim();
+}
+
+// ======================================================
+// GROQ PRIMARY PROVIDER
+// ======================================================
+
+async function callGroq(
+  messages: ProviderRequestMessage[],
+  apiKey: string,
+): Promise<AIResult> {
+  const response = await fetch(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages,
+        temperature: 0.6,
+        max_completion_tokens: 6000,
+        response_format: {
+          type: "json_object",
+        },
+        reasoning_format: "hidden",
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    console.error(
+      "Groq request failed:",
+      response.status,
+      errorText.slice(0, 1000),
+    );
+
+    throw new Error(
+      `Groq request failed with status ${response.status}.`,
+    );
+  }
+
+  const payload: unknown = await response.json();
+
+  return {
+    content: extractProviderContent(payload),
+    provider: "Groq",
+    model: GROQ_MODEL,
+  };
+}
+
+// ======================================================
+// OPENROUTER BACKUP PROVIDER
+// ======================================================
+
+async function callOpenRouter(
+  messages: ProviderRequestMessage[],
+  apiKey: string,
+): Promise<AIResult> {
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://nyx-creative--universe.pages.dev",
+        "X-Title": "NYX Creative Universe",
+      },
+      body: JSON.stringify({
+        model: BACKUP_MODEL,
+        messages,
+        temperature: 0.6,
+        max_tokens: 6000,
+        response_format: {
+          type: "json_object",
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+
+    console.error(
+      "OpenRouter request failed:",
+      response.status,
+      errorText.slice(0, 1000),
+    );
+
+    throw new Error(
+      `OpenRouter request failed with status ${response.status}.`,
+    );
+  }
+
+  const payload: unknown = await response.json();
+
+  const actualModel = isPlainObject(payload) &&
+      typeof payload.model === "string"
+    ? payload.model
+    : BACKUP_MODEL;
+
+  return {
+    content: extractProviderContent(payload),
+    provider: "OpenRouter",
+    model: actualModel,
+  };
+}
+
+// ======================================================
+// PROVIDER SELECTION AND FALLBACK
+// ======================================================
+
+async function generateAIResponse(
+  messages: ProviderRequestMessage[],
+): Promise<AIResult> {
+  const groqKey = Deno.env.get("GROQ_API_KEY");
+  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
+
+  let groqError: unknown = null;
+
+  if (groqKey) {
+    try {
+      return await callGroq(messages, groqKey);
+    } catch (error) {
+      groqError = error;
+
+      console.error(
+        "NYX is switching from Groq to its backup provider.",
+      );
+    }
+  } else {
+    console.error("GROQ_API_KEY is not configured.");
+  }
+
+  if (openRouterKey) {
+    try {
+      return await callOpenRouter(messages, openRouterKey);
+    } catch (error) {
+      console.error("OpenRouter backup failed:", error);
+    }
+  }
+
+  if (!groqKey && !openRouterKey) {
+    throw new Error("No NYX AI provider is configured.");
+  }
+
+  if (groqError) {
+    throw new Error(
+      "NYX could not get a response from its AI providers. Please try again.",
+    );
+  }
+
+  throw new Error(
+    "NYX could not get a response from its backup provider. Please try again.",
+  );
+}
+
+// ======================================================
+// PARSE AND VALIDATE NYX OUTPUT
+// ======================================================
+
+function parseNYXOutput(
+  rawContent: string,
+): ParsedNYXOutput {
+  const cleaned = rawContent
+    .replace(/^\uFEFF/, "")
+    .trim();
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    // Some model responses include text around the JSON object.
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+
+    if (
+      firstBrace === -1 ||
+      lastBrace === -1 ||
+      lastBrace <= firstBrace
+    ) {
+      return {
+        response: cleaned.slice(0, 20000),
+        deliverables: [],
+        memoryUpdates: [],
+      };
+    }
+
+    try {
+      parsed = JSON.parse(
+        cleaned.slice(firstBrace, lastBrace + 1),
+      );
+    } catch {
+      return {
+        response: cleaned.slice(0, 20000),
+        deliverables: [],
+        memoryUpdates: [],
+      };
+    }
+  }
+
+  if (!isPlainObject(parsed)) {
+    return {
+      response: cleaned.slice(0, 20000),
+      deliverables: [],
+      memoryUpdates: [],
+    };
+  }
+
+  const response = safeText(parsed.response, 20000);
+
+  return {
+    response: response || "NYX could not prepare a readable response. Please try again.",
+    deliverables: normalizeDeliverables(parsed.deliverables),
+    memoryUpdates: normalizeMemoryUpdates(parsed.memoryUpdates),
+  };
+}
+
+// ======================================================
+// BUILD AI CONVERSATION MESSAGES
+// ======================================================
+
+function buildMessages(args: {
+  systemPrompt: string;
+  history: ChatMessage[];
+  message: string;
+}): ProviderRequestMessage[] {
+  const messages: ProviderRequestMessage[] = [
+    {
+      role: "system",
+      content: args.systemPrompt,
+    },
+  ];
+
+  for (const item of args.history) {
+    messages.push({
+      role: item.role,
+      content: item.content,
+    });
+  }
+
+  messages.push({
+    role: "user",
+    content: args.message,
+  });
+
+  return messages;
+}
+
+// ======================================================
+// RESEARCH STATUS
+// ======================================================
+
+function extractResearchSources(): never[] {
+  // No live research provider is connected yet.
+  // Never manufacture citations or source records.
+  return [];
+}
+
+// ======================================================
+// NYX CORE EDGE FUNCTION
+// ======================================================
+
+Deno.serve(async (request: Request): Promise<Response> => {
+  // ----------------------------------------------------
+  // CORS
+  // ----------------------------------------------------
+
+  if (request.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: corsHeaders,
+    });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(
+      {
+        success: false,
+        error: "Only POST requests are supported.",
+      },
+      405,
+    );
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    // --------------------------------------------------
+    // ENVIRONMENT CONFIGURATION
+    // --------------------------------------------------
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      return jsonResponse({
-        error: "NYX database configuration is incomplete.",
-      }, 500);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error(
+        "NYX database configuration is incomplete.",
+      );
     }
 
-    if (!GROQ_API_KEY) {
-      return jsonResponse({
-        error: "NYX CORE is missing its Groq API key.",
-      }, 500);
-    }
+    // --------------------------------------------------
+    // AUTHENTICATION
+    // --------------------------------------------------
 
-    // Authenticate the creator.
-    const authorization = req.headers.get("Authorization");
+    const authorization = request.headers.get("Authorization");
 
     if (!authorization?.startsWith("Bearer ")) {
-      return jsonResponse({
-        error: "Please sign in to use NYX.",
-      }, 401);
+      return jsonResponse(
+        {
+          success: false,
+          error: "Please sign in before using NYX.",
+        },
+        401,
+      );
     }
 
     const token = authorization.slice(7).trim();
 
     if (!token) {
-      return jsonResponse({
-        error: "Your session token is missing.",
-      }, 401);
+      return jsonResponse(
+        {
+          success: false,
+          error: "Your session token is missing.",
+        },
+        401,
+      );
     }
 
     const supabase = createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
+      supabaseUrl,
+      supabaseAnonKey,
       {
         global: {
           headers: {
@@ -854,469 +2043,310 @@ Deno.serve(async (req: Request) => {
         auth: {
           persistSession: false,
           autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
       },
     );
 
-    const {
-      data: userData,
-      error: authError,
-    } = await supabase.auth.getUser(token);
+    const { data: authData, error: authError } =
+      await supabase.auth.getUser(token);
 
-    if (authError || !userData?.user) {
-      return jsonResponse({
-        error: "Your session could not be verified. Please sign in again.",
-      }, 401);
+    if (authError || !authData.user) {
+      return jsonResponse(
+        {
+          success: false,
+          error: "Your session is invalid or has expired. Please sign in again.",
+        },
+        401,
+      );
     }
 
-    const user = userData.user;
+    const userId = authData.user.id;
 
-    // Read and validate the request.
-    let body: any;
+    // --------------------------------------------------
+    // REQUEST BODY
+    // --------------------------------------------------
+
+    let body: unknown;
 
     try {
-      body = await req.json();
+      body = await request.json();
     } catch {
-      return jsonResponse({
-        error: "The request body is not valid JSON.",
-      }, 400);
+      return jsonResponse(
+        {
+          success: false,
+          error: "The request body must contain valid JSON.",
+        },
+        400,
+      );
     }
 
-    const message = typeof body?.message === "string"
-      ? body.message.trim()
-      : "";
-
-    if (!message) {
-      return jsonResponse({
-        error: "Please tell NYX what you want to create.",
-      }, 400);
+    if (!isPlainObject(body)) {
+      return jsonResponse(
+        {
+          success: false,
+          error: "Invalid request data.",
+        },
+        400,
+      );
     }
 
-    if (message.length > MAX_MESSAGE_LENGTH) {
+    // --------------------------------------------------
+    // MEMORY SETTINGS ACTION
+    // --------------------------------------------------
+
+    if (body.action === "memory_settings") {
+      const autoSaveEnabled = body.autoSaveEnabled;
+
+      if (typeof autoSaveEnabled !== "boolean") {
+        return jsonResponse(
+          {
+            success: false,
+            error: "A valid automatic memory setting is required.",
+          },
+          400,
+        );
+      }
+
+      const settings = await updateMemorySettings(
+        supabase,
+        userId,
+        autoSaveEnabled,
+      );
+
       return jsonResponse({
-        error: "Your message is too long. Please shorten it and try again.",
-      }, 400);
+        success: true,
+        settings,
+      });
     }
 
-    const activeStudioId =
-      typeof body?.studioId === "string"
-        ? body.studioId.slice(0, 80)
-        : "";
+    // --------------------------------------------------
+    // MEMORY MANAGEMENT ACTION
+    // --------------------------------------------------
 
-    const activeStudio = getStudio(activeStudioId);
+    if (body.action === "memory") {
+      const action = body.memoryAction;
 
-    const studioContext =
-      typeof body?.studioContext === "string"
-        ? body.studioContext.slice(0, MAX_STUDIO_CONTEXT)
-        : "";
+      const allowedActions: MemoryAction[] = [
+        "list",
+        "create",
+        "update",
+        "delete",
+        "delete_all",
+      ];
 
-    const studioName =
-      typeof body?.studioName === "string"
-        ? body.studioName.slice(0, 100)
-        : activeStudio?.name || "NYX Central Intelligence";
+      if (
+        typeof action !== "string" ||
+        !allowedActions.includes(action as MemoryAction)
+      ) {
+        return jsonResponse(
+          {
+            success: false,
+            error: "Invalid memory action.",
+          },
+          400,
+        );
+      }
 
-    const projectId =
-      typeof body?.projectId === "string"
-        ? body.projectId.slice(0, 120)
-        : null;
+      const memoryRequest: MemoryActionRequest = {
+        action: action as MemoryAction,
+        memoryId: safeText(body.memoryId, 128),
+        projectId: body.projectId === undefined
+          ? undefined
+          : validateProjectId(body.projectId),
+        studio: body.studio === undefined
+          ? undefined
+          : safeText(body.studio, 100),
+        memoryType: body.memoryType === undefined
+          ? undefined
+          : validateMemoryType(body.memoryType),
+        title: body.title === undefined
+          ? undefined
+          : safeText(body.title, 200),
+        content: body.content === undefined
+          ? undefined
+          : safeContent(body.content),
+      };
 
-    const requestedCollaborators = Array.isArray(body?.collaborators)
-      ? body.collaborators
-          .filter((id: unknown) => typeof id === "string")
-          .slice(0, 12)
-      : [];
+      const result = await handleMemoryAction(
+        supabase,
+        userId,
+        memoryRequest,
+      );
 
-    const history = Array.isArray(body?.history)
-      ? body.history.filter(isValidHistoryItem)
-      : [];
+      return jsonResponse(result);
+    }
 
-    const limitedHistory = buildLimitedHistory(history);
+    // --------------------------------------------------
+    // NORMAL STUDIO REQUEST
+    // --------------------------------------------------
 
-    // Research is requested explicitly or when the question
-    // clearly depends on current, changing information.
-    const explicitResearch =
-      /\b(research|investigate|fact.?check|verify|look up|search online|search the web|find sources|citations|market research|competitors|industry trends|references|discover information)\b/i
-        .test(message);
+    const message = validateMessage(body.message);
 
-    const currentInformationRequest =
-      /\b(today|right now|this week|this month|latest|current price|current rates|currently available|recent developments|newly released|as of \d{4}|who is the current|what is happening now)\b/i
-        .test(message);
+    const studio = getStudio(body.studioId);
 
-    const researchRequested =
-      explicitResearch || currentInformationRequest;
+    if (!studio) {
+      return jsonResponse(
+        {
+          success: false,
+          error: "Please select a valid NYX studio.",
+        },
+        400,
+      );
+    }
 
-    const orchestration = buildOrchestration(
-      message,
-      activeStudioId,
-      requestedCollaborators,
-      researchRequested,
+    const projectId = validateProjectId(
+      body.projectId ?? null,
     );
 
-    // Load the creator's own shared NYX memory.
-    let memories: any[] = [];
-    let memoryReadError: string | null = null;
+    const studioContext = safeText(
+      body.studioContext,
+      MAX_STUDIO_CONTEXT,
+    );
 
-    const {
-      data: memoryData,
-      error: memoryError,
-    } = await supabase
-      .from("nyx_shared_memory")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
-      .limit(4);
+    const history = buildLimitedHistory(body.history);
 
-    if (memoryError) {
-      memoryReadError = memoryError.message;
-    } else if (Array.isArray(memoryData)) {
-      memories = memoryData;
-    }
+    // --------------------------------------------------
+    // MEMORY SETTINGS AND PROJECT MEMORIES
+    // --------------------------------------------------
+
+    const settings = await getMemorySettings(
+      supabase,
+      userId,
+    );
+
+    const memories = await retrieveProjectMemories(
+      supabase,
+      userId,
+      projectId,
+      studio.id,
+    );
 
     const memoryContext = buildMemoryContext(memories);
 
-    const now = new Date();
-    const currentDate = now.toISOString().slice(0, 10);
-    const currentYear = String(now.getUTCFullYear());
+    // --------------------------------------------------
+    // ORCHESTRATION
+    // --------------------------------------------------
 
-    const systemPrompt = createSystemPrompt(
-      orchestration,
-      currentDate,
-      currentYear,
-      memoryContext,
-      researchRequested,
+    const orchestration = buildOrchestration(
+      studio,
+      message,
+    );
+
+    const researchRequested = isResearchRequest(message);
+
+    // --------------------------------------------------
+    // SYSTEM PROMPT
+    // --------------------------------------------------
+
+    const systemPrompt = createSystemPrompt({
+      studio,
       studioContext,
-      false,
-    );
+      memoryContext,
+      orchestration,
+      researchRequested,
+    });
 
-    const messages = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      ...limitedHistory,
-      {
-        role: "user",
-        content: message,
-      },
-    ];
-
-    let provider = "Groq";
-    let model = GROQ_MODEL;
-    let researchAvailable = false;
-    let researchVerified = false;
-    let sources: {
-      title: string;
-      publisher: string;
-      url: string;
-    }[] = [];
-
-    let aiMessage: any = null;
-    let rawResponse = "";
-    let groqError: string | null = null;
+    const messages = buildMessages({
+      systemPrompt,
+      history,
+      message,
+    });
 
     // --------------------------------------------------
-    // PRIMARY PROVIDER: GROQ
+    // AI GENERATION
     // --------------------------------------------------
 
-    const groqController = new AbortController();
-    const groqTimeout = setTimeout(
-      () => groqController.abort(),
-      90000,
-    );
+    const aiResult = await generateAIResponse(messages);
 
-    try {
-      const groqPayload: any = {
-        model: GROQ_MODEL,
-        messages,
-        temperature: 0.7,
-        max_tokens: 7000,
-      };
-
-      if (researchRequested) {
-        groqPayload.tools = [
-          {
-            type: "browser_search",
-          },
-        ];
-        groqPayload.tool_choice = "required";
-      }
-
-      const groqResponse = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${GROQ_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(groqPayload),
-          signal: groqController.signal,
-        },
-      );
-
-      const groqData = await groqResponse.json();
-
-      if (!groqResponse.ok) {
-        const errorMessage =
-          groqData?.error?.message ||
-          `Groq returned status ${groqResponse.status}.`;
-
-        throw new Error(errorMessage);
-      }
-
-      aiMessage = groqData?.choices?.[0]?.message;
-
-      if (!aiMessage) {
-        throw new Error("Groq returned an empty message.");
-      }
-
-      if (typeof aiMessage.content === "string") {
-        rawResponse = aiMessage.content.trim();
-      } else if (Array.isArray(aiMessage.content)) {
-        rawResponse = aiMessage.content
-          .map((part: any) =>
-            typeof part?.text === "string" ? part.text : ""
-          )
-          .join("\n")
-          .trim();
-      }
-
-      if (!rawResponse) {
-        throw new Error("Groq returned an empty response.");
-      }
-
-      if (researchRequested) {
-        sources = extractBrowserSources(aiMessage);
-        researchAvailable = true;
-        researchVerified = sources.length > 0;
-      }
-    } catch (error) {
-      groqError = error instanceof Error
-        ? error.message
-        : "Groq request failed.";
-
-      console.error("NYX Groq error:", groqError);
-    } finally {
-      clearTimeout(groqTimeout);
-    }
+    const output = parseNYXOutput(aiResult.content);
 
     // --------------------------------------------------
-    // FALLBACK PROVIDER: OPENROUTER
+    // AUTOMATIC MEMORY SAVING
     // --------------------------------------------------
 
-    if (!rawResponse && OPENROUTER_API_KEY) {
-      provider = "OpenRouter fallback";
-      model = BACKUP_MODEL;
+    let memorySavedCount = 0;
 
-      const backupPrompt = createSystemPrompt(
-        orchestration,
-        currentDate,
-        currentYear,
-        memoryContext,
-        researchRequested,
+    if (
+      settings.auto_save_enabled &&
+      output.memoryUpdates.length > 0
+    ) {
+      const evidenceText = buildCreatorEvidenceText(
+        message,
+        history,
         studioContext,
-        true,
       );
 
-      const backupController = new AbortController();
-      const backupTimeout = setTimeout(
-        () => backupController.abort(),
-        90000,
-      );
-
-      try {
-        const backupResponse = await fetch(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://nyx-creative--universe.pages.dev",
-              "X-Title": "NYX Creative Universe",
-            },
-            body: JSON.stringify({
-              model: BACKUP_MODEL,
-              messages: [
-                {
-                  role: "system",
-                  content: backupPrompt,
-                },
-                ...limitedHistory,
-                {
-                  role: "user",
-                  content: message,
-                },
-              ],
-              temperature: 0.7,
-              max_tokens: 7000,
-            }),
-            signal: backupController.signal,
-          },
-        );
-
-        const backupData = await backupResponse.json();
-
-        if (!backupResponse.ok) {
-          throw new Error(
-            backupData?.error?.message ||
-            `OpenRouter returned status ${backupResponse.status}.`,
-          );
-        }
-
-        aiMessage = backupData?.choices?.[0]?.message;
-
-        if (typeof aiMessage?.content === "string") {
-          rawResponse = aiMessage.content.trim();
-        } else if (Array.isArray(aiMessage?.content)) {
-          rawResponse = aiMessage.content
-            .map((part: any) =>
-              typeof part?.text === "string" ? part.text : ""
-            )
-            .join("\n")
-            .trim();
-        }
-
-        if (!rawResponse) {
-          throw new Error("OpenRouter returned an empty response.");
-        }
-
-        // The fallback does not perform verified live research.
-        researchAvailable = false;
-        researchVerified = false;
-        sources = [];
-      } catch (error) {
-        const backupError = error instanceof Error
-          ? error.message
-          : "OpenRouter request failed.";
-
-        console.error("NYX OpenRouter error:", backupError);
-
-        return jsonResponse({
-          error: "NYX CORE could not reach its AI providers.",
-          details: {
-            groq: groqError,
-            fallback: backupError,
-          },
-        }, 502);
-      } finally {
-        clearTimeout(backupTimeout);
-      }
-    }
-
-    if (!rawResponse) {
-      return jsonResponse({
-        error: "NYX CORE could not generate a response.",
-        details: {
-          groq: groqError,
-          fallbackConfigured: Boolean(OPENROUTER_API_KEY),
-        },
-      }, 502);
-    }
-
-    // --------------------------------------------------
-    // PARSE RESPONSE AND DELIVERABLES
-    // --------------------------------------------------
-
-    const parsedOutput = parseNYXOutput(rawResponse);
-
-    let finalResponse = parsedOutput.response;
-    const deliverables = parsedOutput.deliverables;
-
-    if (researchRequested && researchVerified) {
-      finalResponse = appendVerifiedSources(
-        finalResponse,
-        sources,
-      );
-    } else if (researchRequested && !researchVerified) {
-      finalResponse =
-        `${finalResponse}\n\n**Research note:** NYX could not verify live web sources for this response. Please treat current facts, prices, trends and statistics as unverified.`;
-    }
-
-    // --------------------------------------------------
-    // SAVE USEFUL CREATOR MEMORY
-    // --------------------------------------------------
-
-    let memorySaved = false;
-    let memoryWriteError: string | null = null;
-
-    if (message.length >= 20) {
-      const memoryType = researchRequested
-        ? "research"
-        : activeStudioId
-          ? "conversation"
-          : "creator_preference";
-
-      const memoryTitle =
-        `${studioName}: ${message.slice(0, 100)}`;
-
-      const memoryContent = JSON.stringify({
-        userMessage: message.slice(0, 1500),
-        assistantSummary: finalResponse.slice(0, 1800),
-        studioId: orchestration.leadStudio.id,
-        supportingStudios:
-          orchestration.supportingStudios.map((studio) => studio.id),
+      memorySavedCount = await saveAutomaticMemories(
+        supabase,
+        userId,
         projectId,
-        savedAt: now.toISOString(),
-      });
-
-      const { error: writeError } = await supabase
-        .from("nyx_shared_memory")
-        .insert({
-          user_id: user.id,
-          memory_type: memoryType,
-          title: memoryTitle,
-          studio: orchestration.leadStudio.id,
-          content: memoryContent,
-        });
-
-      if (writeError) {
-        memoryWriteError = writeError.message;
-        console.error("NYX memory write error:", writeError.message);
-      } else {
-        memorySaved = true;
-      }
+        studio.id,
+        output.memoryUpdates,
+        evidenceText,
+      );
     }
+
+    // --------------------------------------------------
+    // RESEARCH STATUS
+    // --------------------------------------------------
+
+    const sources = extractResearchSources();
 
     // --------------------------------------------------
     // FINAL RESPONSE
     // --------------------------------------------------
 
     return jsonResponse({
-      response: finalResponse,
-      deliverables,
+      success: true,
+      response: output.response,
 
-      provider,
-      model,
-      core: "NYX CORE",
+      provider: aiResult.provider,
+      model: aiResult.model,
 
-      studio: orchestration.leadStudio.name,
+      studio: {
+        id: studio.id,
+        name: studio.name,
+      },
+
       orchestration,
 
-      productionStatus:
-        "Text-based creative work can be produced by NYX CORE. Media rendering, recording, playable game builds and exports require connected production engines.",
+      deliverables: output.deliverables,
 
-      researchAvailable,
       researchRequested,
-      researchVerified,
-      researchDate: researchVerified ? currentDate : null,
+      researchAvailable: false,
+      researchVerified: false,
+      researchDate: null,
       sources,
 
-      memoryAvailable: !memoryReadError,
-      memorySaved,
-      memoryReadError,
-      memoryWriteError,
+      memoryAvailable: true,
+      memorySaved: memorySavedCount > 0,
+      memorySavedCount,
+      autoSaveEnabled: settings.auto_save_enabled,
 
       projectId,
     });
   } catch (error) {
-    console.error("NYX CORE unexpected error:", error);
+    console.error("NYX CORE request error:", error);
 
-    return jsonResponse({
-      error: "NYX CORE encountered an unexpected error.",
-      details: error instanceof Error
-        ? error.message
-        : "Unknown server error.",
-    }, 500);
+    const message = error instanceof Error
+      ? error.message
+      : "NYX could not complete your request.";
+
+    const status =
+      message.includes("Please enter") ||
+      message.includes("Invalid") ||
+      message.includes("required") ||
+      message.includes("exceeds")
+        ? 400
+        : 500;
+
+    return jsonResponse(
+      {
+        success: false,
+        error: message,
+      },
+      status,
+    );
   }
 });
