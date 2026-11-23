@@ -963,7 +963,7 @@ Deno.serve(async (req: Request) => {
       .from("nyx_shared_memory")
       .select("*")
       .eq("user_id", user.id)
-      ..order("updated_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(4);
 
     if (memoryError) {
