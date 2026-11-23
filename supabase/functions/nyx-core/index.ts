@@ -1002,6 +1002,7 @@ async function deleteAllSharedMemory(
 // PART 3: MEMORY ACTION HANDLER
 // ======================================================
 
+
 async function handleMemoryAction(
   client: SupabaseClient,
   userId: string,
@@ -1065,6 +1066,14 @@ async function handleMemoryAction(
           projectId: request.projectId,
         },
       );
+
+      return {
+        success: true,
+        memory,
+      };
+    }
+
+    case "delete": {
       if (!request.memoryId) {
         throw new Error("A memory ID is required.");
       }
@@ -1100,10 +1109,10 @@ async function handleMemoryAction(
   }
 }
 
+      
 // ======================================================
 // PART 4: MEMORY RETRIEVAL AND CONTEXT
-// ==============================================================
-
+// ======================================================
 
 async function retrieveRelevantMemory(
   client: SupabaseClient,
@@ -1897,13 +1906,12 @@ async function callAIProvider(
       throw new Error(
         "NYX could not reach its primary or backup AI provider. Please try again shortly.",
       );
-    }
   }
 }
-}// ======================================================
+
+// ======================================================
 // PART 6: MEMORY ACTION REQUEST VALIDATION
 // ======================================================
-
 function parseMemoryActionRequest(
   value: unknown,
 ): MemoryActionRequest {
