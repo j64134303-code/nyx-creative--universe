@@ -212,7 +212,9 @@ const STUDIOS: Studio[] = [
     keywords: /\b(research|discover|sources|references|fact.check|trends|investigate|verify)\b/i,
     dependencies: ["film", "music", "books", "voice", "games", "marketing", "characters", "audio", "animation", "comedy", "audiobooks"],
   },
-];// ======================================================
+];
+
+// ======================================================
 // PART 2: SHARED UTILITIES AND REQUEST VALIDATION
 // ======================================================
 
@@ -656,7 +658,8 @@ function normalizeMemoryContent(
 
   return sanitizeValue(value, 0) as Record<string, unknown>;
 }
-}// ======================================================
+
+// ======================================================
 // PART 3: MEMORY SETTINGS AND DATABASE OPERATIONS
 // ======================================================
 
@@ -1062,14 +1065,6 @@ async function handleMemoryAction(
           projectId: request.projectId,
         },
       );
-
-      return {
-        success: true,
-        memory,
-      };
-    }
-
-    case "delete": {
       if (!request.memoryId) {
         throw new Error("A memory ID is required.");
       }
@@ -1103,9 +1098,11 @@ async function handleMemoryAction(
     default:
       throw new Error("Unsupported memory action.");
   }
-}// ======================================================
-// PART 4: MEMORY RETRIEVAL AND CONTEXT
+}
+
 // ======================================================
+// PART 4: MEMORY RETRIEVAL AND CONTEXT
+// ==============================================================
 
 
 async function retrieveRelevantMemory(
@@ -1771,7 +1768,12 @@ async function callGroq(
         ? payload.error.message
         : `Groq request failed with HTTP ${response.status}.`;
 
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage) as Error & {
+      status?: number;
+    };
+
+    error.status = response.status;
+    throw error;
   }
 
   const content = payload?.choices?.[0]?.message?.content;
@@ -1848,19 +1850,39 @@ async function callOpenRouter(
 // ======================================================
 // PART 5: PROVIDER FALLBACK MANAGER
 // ======================================================
-
 async function callAIProvider(
   messages: ProviderRequestMessage[],
 ): Promise<AIResult> {
   try {
     return await callGroq(messages);
   } catch (groqError) {
+    const status =
+      groqError instanceof Error &&
+      "status" in groqError &&
+      typeof groqError.status === "number"
+        ? groqError.status
+        : undefined;
+
     console.error(
       "NYX Groq provider failed:",
       groqError instanceof Error
         ? groqError.message
         : "Unknown Groq error.",
     );
+
+    // Do not hide authentication, configuration,
+    // or invalid-request errors with a fallback.
+    if (
+      status === 400 ||
+      status === 401 ||
+      status === 403 ||
+      (
+        groqError instanceof Error &&
+        groqError.message === "GROQ_API_KEY is not configured."
+      )
+    ) {
+      throw groqError;
+    }
 
     try {
       return await callOpenRouter(messages);
@@ -1877,6 +1899,7 @@ async function callAIProvider(
       );
     }
   }
+}
 }// ======================================================
 // PART 6: MEMORY ACTION REQUEST VALIDATION
 // ======================================================
