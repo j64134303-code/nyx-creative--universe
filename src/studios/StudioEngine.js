@@ -1,3 +1,4 @@
+
 import { supabase } from "../lib/supabase";
 import {
   getStudio,
@@ -43,23 +44,23 @@ export async function runStudioRequest({
 
   const collaborators = getStudioCollaborators(studioId);
 
-  const studioInstructions = `
-You are ${studio.name}, a specialist creative workspace
-inside the NYX creative platform.
+  const studioContext = `
+ACTIVE STUDIO:
+${studio.name}
 
-STUDIO CATEGORY:
+CATEGORY:
 ${studio.category}
 
-STUDIO PURPOSE:
+PURPOSE:
 ${studio.purpose}
 
-YOUR CAPABILITIES:
+CAPABILITIES:
 ${studio.capabilities.map(item => `- ${item}`).join("\n")}
 
 RESEARCH AND DISCOVERY:
 ${studio.research.map(item => `- ${item}`).join("\n")}
 
-CONNECTED CREATIVE EXPERTISE:
+POTENTIAL COLLABORATORS:
 ${collaborators.map(item =>
   `- ${item.name}: ${item.purpose}`
 ).join("\n")}
@@ -67,26 +68,16 @@ ${collaborators.map(item =>
 PRODUCTION CONNECTION:
 ${studio.production}
 
-HOW YOU SHOULD WORK:
-
-1. Treat this as an ongoing conversation, not a new isolated request.
-2. Remember and use the relevant conversation history.
-3. Understand the creator's intention before proposing unnecessary steps.
-4. Work deeply within this studio's responsibilities.
-5. Use research and discovery when useful.
-6. Coordinate with relevant NYX studios when their expertise is needed.
-7. Keep the creator's project details and creative direction consistent.
-8. Ask one relevant follow-up question at a time when necessary.
-9. Produce useful creative work, not generic encouragement.
-10. Be honest about available production capabilities.
-11. Never claim that a song, image, video, voice recording,
-    animation or other media asset has been generated unless
-    an actual connected production service completed it.
-12. Explain when an external production connection is required.
-13. Respect the creator's ownership, choices and creative direction.
-
-Speak naturally and collaborate with the creator.
-Do not repeat the studio description unnecessarily.
+STUDIO RULES:
+- Work as a specialist within this studio.
+- Maintain project continuity.
+- Coordinate with other studios only when relevant.
+- Produce actual creative materials where possible.
+- Distinguish plans from completed deliverables.
+- Never claim that media has been generated, recorded,
+  rendered or exported unless the action actually happened.
+- Explain external production requirements honestly.
+- Ask only one necessary follow-up question at a time.
 `;
 
   const safeHistory = Array.isArray(history)
@@ -125,22 +116,17 @@ Do not repeat the studio description unnecessarily.
     "nyx-core",
     {
       body: {
-        message: `
-${studioInstructions}
+        // Keep the creator's actual message separate.
+        message: message.trim(),
 
-CURRENT CREATOR MESSAGE:
-${message.trim()}
-        `.trim(),
+        // Send studio instructions as separate context.
+        studioContext,
 
         studioName: studio.name,
         studioId: studio.id,
         projectId,
 
-        history: safeHistory,
-
-        collaboratorStudioIds: collaborators.map(
-          item => item.id
-        )
+        history: safeHistory
       },
 
       headers: {
@@ -169,9 +155,32 @@ ${message.trim()}
       : [],
     provider: data.provider || "NYX CORE",
     model: data.model || null,
-    research: data.research || null,
+
+    // Preserve central intelligence decisions.
+    orchestration: data.orchestration || null,
+
+    // Preserve structured deliverable information
+    // when the backend begins returning it.
+    deliverables: Array.isArray(data.deliverables)
+      ? data.deliverables
+      : [],
+
+    research: {
+      requested: Boolean(data.researchRequested),
+      available: Boolean(data.researchAvailable),
+      verified: Boolean(data.researchVerified),
+      date: data.researchDate || null
+    },
+
+    memory: {
+      available: Boolean(data.memoryAvailable),
+      saved: Boolean(data.memorySaved)
+    },
+
     studio: studio.name,
-    productionStatus: studio.production,
+    productionStatus:
+      data.productionStatus || studio.production,
+
     projectId
   };
 }
