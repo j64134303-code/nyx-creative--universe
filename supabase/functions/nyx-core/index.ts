@@ -734,7 +734,7 @@ async function listSharedMemory(
   userId: string,
   projectId: string | null,
   studio: string | null = null,
-  limit = MAX_MEMORY_ITEM9S,
+  limit = MAX_MEMORY_ITEMS,
 ): Promise<MemoryRecord[]> {
   let query = client
     .from("nyx_shared_memory")
@@ -748,10 +748,11 @@ async function listSharedMemory(
   }
 
   if (studio) {
-    query = query.eq(
-      "studio",
-      normalizeStudioForMemory(studio),
-    );
+    const normalizedStudio = normalizeStudioForMemory(studio);
+
+    query = normalizedStudio === "general"
+      ? query.ilike("studio", "general")
+      : query.eq("studio", normalizedStudio);
   }
 
   const { data, error } = await query
@@ -766,6 +767,7 @@ async function listSharedMemory(
 
   return (data ?? []) as MemoryRecord[];
 }
+
 
 async function getMemoryById(
   client: SupabaseClient,
