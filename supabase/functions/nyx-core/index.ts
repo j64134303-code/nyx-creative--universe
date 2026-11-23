@@ -734,7 +734,7 @@ async function listSharedMemory(
   userId: string,
   projectId: string | null,
   studio: string | null = null,
-  limit = MAX_MEMORY_ITEMS,
+  limit = MAX_MEMORY_ITEM9S,
 ): Promise<MemoryRecord[]> {
   let query = client
     .from("nyx_shared_memory")
@@ -2003,6 +2003,7 @@ async function handleChatRequest(
   // LOAD CREATOR MEMORY SETTINGS
   // ----------------------------------------------------
 
+
   let memorySettings: MemorySettings;
 
   try {
@@ -2012,29 +2013,7 @@ async function handleChatRequest(
     );
   } catch (error) {
     console.error(
-      "NYX function normalizeDeliverable(value: unknown): Deliverable | null {
-  if (!isPlainObject(value)) {
-    return null;
-  }
-
-  const studioId = safeString(value.studioId, 100);
-  const studio = getStudio(studioId);
-
-  const title = safeString(value.title, 200);
-  const description = safeString(value.description, 2000);
-  const type = safeString(value.type, 100);
-
-  if (!studio || !title || !description || !type) {
-    return null;
-  }
-
-  return {
-    studioId: studio.id,
-    title,
-    description,
-    type,
-  };
-} settings error:",
+      "NYX memory settings error:",
       error instanceof Error ? error.message : error,
     );
 
@@ -2042,6 +2021,7 @@ async function handleChatRequest(
       "NYX could not load your memory settings. Please try again.",
     );
   }
+
 
   // ----------------------------------------------------
   // RETRIEVE RELEVANT SHARED MEMORY
