@@ -1256,13 +1256,46 @@ function hasExactCreatorEvidence(
 }
 
 function isSafeMemoryUpdate(
-  _update: MemoryUpdate,
-  _creatorText: string,
+  update: MemoryUpdate,
+  creatorText: string,
 ): boolean {
-  // AI-proposed memories must not be saved automatically.
-  // Explicit creator confirmation will be implemented separately.
-  return false;
+  const text = normalizeText(creatorText);
+  const evidence = normalizeText(update.evidence);
+
+  // The creator must explicitly request memory saving.
+  const explicitSaveRequest =
+    /\b(remember|save this|save that|keep this in memory|don't forget|do not forget|store this)\b/i
+      .test(creatorText);
+
+  if (!explicitSaveRequest) return false;
+
+  // Only creator-stated or creator-confirmed information is eligible.
+  if (
+    update.approvalStatus !== "creator-stated" &&
+    update.approvalStatus !== "creator-confirmed"
+  ) {
+    return false;
+  }
+
+  // Evidence must be an exact part of the creator's message.
+  if (
+    evidence.length < 12 ||
+    !text.includes(evidence)
+  ) {
+    return false;
+  }
+
+  // Do not save empty or meaningless memories.
+  if (
+    !update.title.trim() ||
+    Object.keys(update.content).length === 0
+  ) {
+    return false;
+  }
+
+  return true;
 }
+
 function normalizeMemoryUpdate(
   value: unknown,
 ): MemoryUpdate | null {
