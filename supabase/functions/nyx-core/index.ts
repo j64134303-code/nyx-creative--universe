@@ -2103,15 +2103,15 @@ async function handleChatRequest(
       studio.id,
       message,
     );
-  } catch (error) {
-    console.error(
-      "NYX memory retrieval error:",
-      error instanceof Error ? error.message : error,
-    );
+    } catch (error) {
+    const details = error instanceof Error
+      ? error.message
+      : String(error);
 
-    // Do not silently pretend that memory was retrieved.
+    console.error("NYX memory retrieval error:", details);
+
     throw new Error(
-      "NYX could not retrieve your saved project memory. Please try again.",
+      `NYX memory retrieval failed: ${details}`,
     );
   }
 
