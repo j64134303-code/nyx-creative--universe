@@ -1902,10 +1902,10 @@ async function callAIProvider(
           ? fallbackError.message
           : "Unknown fallback error.",
       );
-
       throw new Error(
         "NYX could not reach its primary or backup AI provider. Please try again shortly.",
       );
+    }
   }
 }
 
