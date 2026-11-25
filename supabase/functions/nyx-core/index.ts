@@ -45,6 +45,7 @@ const SHARED_MEMORY_TABLE = "nyx_shared_memory";
 
 const ALLOWED_ORIGINS = new Set([
   "https://nyx-creative-universe.pages.dev",
+  "https://nyx-creative--universe.pages.dev",
   "http://localhost:5173",
   "http://127.0.0.1:5173"
 ]);
