@@ -37,7 +37,7 @@ const MAX_DELIVERABLES = 20;
 const MAX_SOURCES = 15;
 
 const MEMORY_SETTINGS_TABLE = "nyx_memory_settings";
-const SHARED_MEMORY_TABLE = "nyx_shared_memory";
+const SHARED_MEMORY_TABLE = "nyx_core_memory";
 
 /* -------------------------
    2. CORS
