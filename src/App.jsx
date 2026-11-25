@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, Film, Music, BookOpen, Mic, Gamepad2,
   Megaphone, UserRound, AudioLines, Clapperboard, Laugh,
@@ -151,6 +151,14 @@ function MessageBubble({ item, searchTerm = "" }) {
 
 function Composer({ onSend, disabled = false }) {
   const [message, setMessage] = useState("");
+  const textareaRef = useRef(null);
+
+  const resizeTextarea = (element) => {
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${Math.min(element.scrollHeight, 132)}px`;
+    element.style.overflowY = element.scrollHeight > 132 ? "auto" : "hidden";
+  };
 
   const submitMessage = (event) => {
     event.preventDefault();
@@ -160,13 +168,21 @@ function Composer({ onSend, disabled = false }) {
 
     onSend(clean);
     setMessage("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "25px";
+      textareaRef.current.style.overflowY = "hidden";
+    }
   };
 
   return (
     <form className="nyx-composer" onSubmit={submitMessage}>
       <textarea
+        ref={textareaRef}
         value={message}
-        onChange={(event) => setMessage(event.target.value)}
+        onChange={(event) => {
+          setMessage(event.target.value);
+          resizeTextarea(event.target);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
@@ -176,6 +192,7 @@ function Composer({ onSend, disabled = false }) {
         placeholder="Tell NYX what you're imagining..."
         rows={1}
         disabled={disabled}
+        aria-label="Type your message to NYX"
       />
 
       <button
@@ -231,6 +248,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
@@ -275,6 +293,15 @@ export default function App() {
       (item.text || "").toLowerCase().includes(chatSearch.toLowerCase())
     );
   }, [currentConversation, chatSearch]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [visibleMessages, generating, page, activeConversation]);
 
   const startConversation = (studio) => {
     if (!studio) return;
@@ -749,7 +776,10 @@ export default function App() {
         )}
 
         <section className="nyx-chat-main">
-          <div className={`nyx-messages ${!hasMessages ? "nyx-messages-empty" : ""}`}>
+          <div
+            ref={messagesContainerRef}
+            className={`nyx-messages ${!hasMessages ? "nyx-messages-empty" : ""}`}
+          >
             {!hasMessages ? (
               <div className="nyx-chat-welcome">
                 <div className="nyx-welcome-orb">
