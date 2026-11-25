@@ -30,6 +30,9 @@ create table if not exists public.projects (
 create index if not exists projects_user_updated_idx
   on public.projects (user_id, updated_at desc);
 
+create unique index if not exists projects_id_user_unique
+  on public.projects (id, user_id);
+
 create table if not exists public.nyx_memory_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   enabled boolean not null default true,
@@ -177,9 +180,6 @@ create unique index if not exists nyx_research_project_url_unique
   on public.nyx_research_sources (project_id, url);
 
 -- Composite uniqueness is required by the owner-preserving foreign keys above.
-create unique index if not exists projects_id_user_unique
-  on public.projects (id, user_id);
-
 -- Enable RLS on every user-owned table.
 alter table public.projects enable row level security;
 alter table public.nyx_memory_settings enable row level security;
