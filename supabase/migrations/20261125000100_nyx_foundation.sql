@@ -42,7 +42,7 @@ create table if not exists public.nyx_memory_settings (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.nyx_shared_memory (
+create table if not exists public.nyx_core_memory (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   project_id uuid references public.nyx_projects(id) on delete cascade,
@@ -57,9 +57,9 @@ create table if not exists public.nyx_shared_memory (
 );
 
 create index if not exists nyx_memory_user_updated_idx
-  on public.nyx_shared_memory (user_id, updated_at desc);
+  on public.nyx_core_memory (user_id, updated_at desc);
 create index if not exists nyx_memory_project_updated_idx
-  on public.nyx_shared_memory (project_id, updated_at desc)
+  on public.nyx_core_memory (project_id, updated_at desc)
   where project_id is not null;
 
 create table if not exists public.nyx_conversations (
@@ -183,7 +183,7 @@ create unique index if not exists nyx_research_project_url_unique
 -- Enable RLS on every user-owned table.
 alter table public.nyx_projects enable row level security;
 alter table public.nyx_memory_settings enable row level security;
-alter table public.nyx_shared_memory enable row level security;
+alter table public.nyx_core_memory enable row level security;
 alter table public.nyx_conversations enable row level security;
 alter table public.nyx_messages enable row level security;
 alter table public.nyx_studio_tasks enable row level security;
@@ -201,8 +201,8 @@ create policy "NYX users manage their memory settings" on public.nyx_memory_sett
   for all to authenticated using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-drop policy if exists "NYX users manage their memory" on public.nyx_shared_memory;
-create policy "NYX users manage their memory" on public.nyx_shared_memory
+drop policy if exists "NYX users manage their memory" on public.nyx_core_memory;
+create policy "NYX users manage their memory" on public.nyx_core_memory
   for all to authenticated using (auth.uid() = user_id)
   with check (
     auth.uid() = user_id
@@ -282,8 +282,8 @@ drop trigger if exists nyx_memory_settings_updated_at on public.nyx_memory_setti
 create trigger nyx_memory_settings_updated_at before update on public.nyx_memory_settings
   for each row execute function public.nyx_set_updated_at();
 
-drop trigger if exists nyx_shared_memory_updated_at on public.nyx_shared_memory;
-create trigger nyx_shared_memory_updated_at before update on public.nyx_shared_memory
+drop trigger if exists nyx_core_memory_updated_at on public.nyx_core_memory;
+create trigger nyx_core_memory_updated_at before update on public.nyx_core_memory
   for each row execute function public.nyx_set_updated_at();
 
 drop trigger if exists nyx_conversations_updated_at on public.nyx_conversations;
