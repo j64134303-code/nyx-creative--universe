@@ -100,9 +100,9 @@ type Orchestration = {
 };
 
 type Deliverable = {
-  id: string;
+  id?: string;
   title: string;
-  type: string;
+  type?: string;
   description: string;
   content?: string;
   status: "draft" | "ready" | "needs_review";
@@ -117,8 +117,9 @@ type ResearchSource = {
 
 type MemoryUpdate = {
   action: "save" | "update" | "delete";
-  category: string;
-  content: string;
+  category?: string;
+  content?: string;
+  id?: string;
   reason?: string;
 };
 
@@ -178,16 +179,13 @@ type NYXResponse = {
   orchestration: Orchestration;
   deliverables: Deliverable[];
   sources: ResearchSource[];
-  research: {
-    requested: boolean;
-    available: boolean;
-    verified: boolean;
-  };
+  research: ResearchResult;
   memory: {
-    enabled: boolean;
-    updates: number;
+    success: boolean;
+    action: ExplicitMemoryIntent;
+    message: string;
   };
-  productionStatus: "planned" | "not_connected";
+  productionStatus: "planning" | "preparing" | "ready" | "requires_service";
 };
 
 /* -------------------------
@@ -3753,7 +3751,7 @@ async function handleNYXRequest(
 
   try {
     // 1. Authenticate user and validate request
-    const context = await buildRequestContext(request, body);
+    const { client, context } = await buildRequestContext(request, body);
 
     // 2. Decide which studios should work together
     const orchestration = buildOrchestration(context);
@@ -3765,7 +3763,7 @@ async function handleNYXRequest(
 
     // 4. Load permitted user and project memory
     const memory = await loadMemoryContext(
-      context.client,
+      client,
       context.user.id,
       context.projectId
     );
@@ -3791,17 +3789,24 @@ async function handleNYXRequest(
       );
 
     // 7. Only perform a memory action when it is authorized
-    let memoryResult = {
+    let memoryResult: {
+      success: boolean;
+      action: ExplicitMemoryIntent;
+      message: string;
+    } = {
       success: false,
+      action: "none",
       message: "No memory changes were made."
     };
 
     if (authorizedMemoryUpdate) {
       memoryResult = await processCreatorMemoryAction(
-        context.client,
+        client,
         context.user.id,
         context.projectId,
-        authorizedMemoryUpdate
+        authorizedMemoryUpdate,
+        memory.settings,
+        memoryIntent
       );
     }
 
