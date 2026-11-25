@@ -908,7 +908,7 @@ async function verifyProjectOwnership(
     data,
     error
   } = await client
-    .from("projects")
+    .from("nyx_projects")
     .select("id")
     .eq("id", projectId)
     .eq("user_id", userId)
