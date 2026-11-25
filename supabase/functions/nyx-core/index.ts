@@ -2275,8 +2275,9 @@ function prepareMemoryUpdate(
   const action = input.action;
 
   if (
+    typeof action !== "string" ||
     action !== explicitIntent ||
-    !VALID_MEMORY_ACTIONS.has(action)
+    !VALID_MEMORY_ACTIONS.has(action as MemoryUpdate["action"])
   ) {
     return null;
   }
