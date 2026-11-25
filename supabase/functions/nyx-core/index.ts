@@ -1527,6 +1527,117 @@ function formatOrchestrationContext(
       ? `Supporting studios, ranked by relevance: ${supporting.map((studio) => studio.name).join(", ")}`
       : "No additional studio was identified.",
     "",
+
+
+
+// ======================================================
+// PART 4: INTELLIGENT STUDIO ORCHESTRATION
+// ======================================================
+
+const MAX_SUPPORTING_STUDIOS = 4;
+
+function getStudioMatchScore(
+  message: string,
+  studio: Studio,
+  leadStudio: Studio,
+): number {
+  const normalizedMessage = ` ${normalizeKey(message)} `;
+  let score = 0;
+
+  const identifiers = [
+    studio.id,
+    studio.name,
+    ...studio.aliases,
+  ];
+
+  for (const identifier of identifiers) {
+    const normalizedIdentifier = normalizeKey(identifier);
+
+    if (
+      normalizedIdentifier &&
+      normalizedMessage.includes(` ${normalizedIdentifier} `)
+    ) {
+      score += 6;
+      break;
+    }
+  }
+
+  if (studio.keywords.test(message)) {
+    score += 3;
+  }
+
+  if (leadStudio.dependencies.includes(studio.id)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function detectSupportingStudios(
+  message: string,
+  leadStudio: Studio,
+): string[] {
+  const candidates = STUDIOS
+    .filter((studio) => studio.id !== leadStudio.id)
+    .map((studio) => ({
+      studio,
+      score: getStudioMatchScore(
+        message,
+        studio,
+        leadStudio,
+      ),
+    }))
+    .filter((item) => item.score >= 3)
+    .sort((a, b) => b.score - a.score);
+
+  return candidates
+    .slice(0, MAX_SUPPORTING_STUDIOS)
+    .map((item) => item.studio.id);
+}
+
+function buildOrchestration(
+  message: string,
+  leadStudio: Studio,
+): Orchestration {
+  const supportingStudios = detectSupportingStudios(
+    message,
+    leadStudio,
+  );
+
+  const responsibilities: Record<string, string[]> = {
+    [leadStudio.id]: leadStudio.responsibilities,
+  };
+
+  for (const studioId of supportingStudios) {
+    const studio = getStudioById(studioId);
+
+    if (studio) {
+      responsibilities[studioId] = studio.responsibilities;
+    }
+  }
+
+  return {
+    leadStudio: leadStudio.id,
+    supportingStudios,
+    responsibilities,
+  };
+}
+
+function formatOrchestrationContext(
+  orchestration: Orchestration,
+): string {
+  const lead = getStudioById(orchestration.leadStudio);
+
+  const supporting = orchestration.supportingStudios
+    .map((id) => getStudioById(id))
+    .filter((studio): studio is Studio => studio !== null);
+
+  return [
+    `Lead studio: ${lead?.name ?? orchestration.leadStudio}`,
+    supporting.length
+      ? `Supporting studios, ranked by relevance: ${supporting.map((studio) => studio.name).join(", ")}`
+      : "No additional studio was identified.",
+    "",
     "COLLABORATION RESPONSIBILITIES:",
     ...Object.entries(orchestration.responsibilities)
       .map(([id, studioResponsibilities]) => {
@@ -1546,9 +1657,6 @@ function formatOrchestrationContext(
   ].join("\n");
 }
 
-}// ======================================================
-// PART 5: AI OUTPUT VALIDATION
-// ======================================================
 
 function normalizeDeliverable(value: unknown): Deliverable | null {
   if (!isPlainObject(value)) {
