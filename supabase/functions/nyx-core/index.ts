@@ -117,8 +117,10 @@ type ResearchSource = {
 
 type MemoryUpdate = {
   action: "save" | "update" | "delete";
-  category: string;
-  content: string;
+  id?: string;
+  category?: string;
+  content?: string;
+  studio?: string;
   reason?: string;
 };
 
@@ -131,9 +133,11 @@ type MemorySettings = {
 type MemoryRecord = {
   id: string;
   user_id: string;
-  project_id?: string | null;
-  category?: string | null;
-  content?: string | null;
+  project_id: string | null;
+  category: string;
+  content: string;
+  studio: string;
+  title: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -172,22 +176,26 @@ type NYXRequest = {
 
 type NYXResponse = {
   response: string;
+  summary: string;
   provider: AIProvider;
   model: string;
   studio: Studio;
   orchestration: Orchestration;
   deliverables: Deliverable[];
   sources: ResearchSource[];
-  research: {
-    requested: boolean;
-    available: boolean;
-    verified: boolean;
-  };
+  research: ResearchResult;
+  researchRequested: boolean;
+  researchAvailable: boolean;
+  researchVerified: boolean;
+  researchDate: string | null;
   memory: {
-    enabled: boolean;
-    updates: number;
+    success: boolean;
+    action: ExplicitMemoryIntent;
+    message: string;
   };
-  productionStatus: "planned" | "not_connected";
+  memoryAvailable: boolean;
+  memorySaved: boolean;
+  productionStatus: "planning" | "preparing" | "ready" | "requires_service";
 };
 
 /* -------------------------
@@ -609,9 +617,10 @@ function validateProjectId(
 
   if (
     projectId.length > MAX_PROJECT_ID_LENGTH ||
-    /[\u0000-\u001F\u007F]/.test(projectId)
+    /[\u0000-\u001F\u007F]/.test(projectId) ||
+    !isValidUUID(projectId)
   ) {
-    throw new Error("Project ID is invalid.");
+    throw new Error("Project ID must be a valid project UUID.");
   }
 
   return projectId;
@@ -752,15 +761,6 @@ function validateNYXRequest(
   const selectedStudios = parseSelectedStudios(
     value.selectedStudios
   );
-
-  if (
-    selectionMode === "manual" &&
-    selectedStudios.length === 0
-  ) {
-    throw new Error(
-      "Choose at least one studio when using manual selection."
-    );
-  }
 
   return {
     message,
@@ -1922,12 +1922,15 @@ async function getMemorySettings(
     return { ...DEFAULT_MEMORY_SETTINGS };
   }
 
+  const autoSaveEnabled =
+    typeof data.auto_save_enabled === "boolean"
+      ? data.auto_save_enabled
+      : false;
+
   return validateMemorySettings({
-    enabled: data.enabled,
-    allowPersonalMemory:
-      data.allow_personal_memory,
-    allowProjectMemory:
-      data.allow_project_memory
+    enabled: autoSaveEnabled,
+    allowPersonalMemory: autoSaveEnabled,
+    allowProjectMemory: autoSaveEnabled
   });
 }
 
@@ -1942,11 +1945,24 @@ function validateMemoryRecord(
 
   if (
     typeof value.id !== "string" ||
-    typeof value.user_id !== "string" ||
-    typeof value.content !== "string"
+    typeof value.user_id !== "string"
   ) {
     return null;
   }
+
+  let contentText = "";
+  if (typeof value.content === "string") {
+    contentText = value.content;
+  } else if (isPlainObject(value.content)) {
+    contentText =
+      typeof value.content.text === "string"
+        ? value.content.text
+        : JSON.stringify(value.content);
+  } else {
+    return null;
+  }
+
+  if (!contentText.trim()) return null;
 
   return {
     id: value.id,
@@ -1956,10 +1972,18 @@ function validateMemoryRecord(
         ? value.project_id
         : null,
     category:
-      typeof value.category === "string"
-        ? safeString(value.category, 100)
+      typeof value.memory_type === "string"
+        ? safeString(value.memory_type, 100)
         : "general",
-    content: safeString(value.content, 3000),
+    content: safeString(contentText, 3000),
+    studio:
+      typeof value.studio === "string"
+        ? safeString(value.studio, 100)
+        : "General",
+    title:
+      typeof value.title === "string"
+        ? safeString(value.title, 200)
+        : null,
     created_at:
       typeof value.created_at === "string"
         ? value.created_at
@@ -2061,8 +2085,11 @@ function formatMemoryContext(
 
   for (const record of records) {
     lines.push("");
-    lines.push(`Category: ${record.category ?? "general"}`);
-    lines.push(`Memory: ${record.content ?? ""}`);
+    lines.push(`Memory ID: ${record.id}`);
+    lines.push(`Studio: ${record.studio}`);
+    lines.push(`Category: ${record.category}`);
+    if (record.title) lines.push(`Title: ${record.title}`);
+    lines.push(`Memory: ${record.content}`);
   }
 
   return lines.join("\n");
@@ -2263,7 +2290,8 @@ function validateMemoryContent(
 function prepareMemoryUpdate(
   input: unknown,
   explicitIntent: ExplicitMemoryIntent,
-  settings: MemorySettings
+  settings: MemorySettings,
+  studioName = "General"
 ): MemoryUpdate | null {
   if (
     explicitIntent === "none" ||
@@ -2304,11 +2332,12 @@ function prepareMemoryUpdate(
       action,
       content,
       category,
+      studio: safeString(studioName, 100) || "General",
       id:
         typeof input.id === "string"
           ? input.id
           : undefined
-    } as MemoryUpdate;
+    };
   }
 
   if (action === "delete") {
@@ -2367,14 +2396,16 @@ async function saveCreatorMemory(
     throw new Error("Invalid memory content.");
   }
 
+  const memoryType =
+    safeString(update.category ?? "general", 100) || "general";
+
   const payload = {
     user_id: userId,
     project_id: projectId,
-    category: safeString(
-      update.category ?? "general",
-      100
-    ),
-    content
+    studio: safeString(update.studio ?? "General", 100) || "General",
+    memory_type: memoryType,
+    title: memoryType.slice(0, 200),
+    content: { text: content }
   };
 
   const { data, error } = await client
@@ -2450,11 +2481,13 @@ async function updateCreatorMemory(
   let query = client
     .from(SHARED_MEMORY_TABLE)
     .update({
-      content,
-      category: safeString(
-        update.category ?? "general",
-        100
-      )
+      content: { text: content },
+      memory_type:
+        safeString(update.category ?? "general", 100) || "general",
+      studio: safeString(update.studio ?? "General", 100) || "General",
+      title:
+        (safeString(update.category ?? "general", 100) || "general").slice(0, 200),
+      updated_at: new Date().toISOString()
     })
     .eq("id", update.id)
     .eq("user_id", userId);
@@ -2904,14 +2937,9 @@ function canUseFallback(
     return true;
   }
 
-  if (
-    error.status === 400 ||
-    error.status === 401 ||
-    error.status === 403
-  ) {
-    return false;
-  }
-
+  // Groq and OpenRouter have independent credentials. A Groq
+  // authentication or model error must not block a valid fallback.
+  if (error.status === 413) return false;
   return true;
 }
 
@@ -3558,10 +3586,17 @@ function normalizeNYXDeliverables(
         : "draft";
 
     output.push({
+      id:
+        getSafeText(value.id, "", 100) ||
+        crypto.randomUUID(),
       title,
+      type: getSafeText(value.type, "creative_draft", 80),
       description,
+      ...(typeof value.content === "string"
+        ? { content: safeString(value.content, 12000) }
+        : {}),
       status
-    } as Deliverable);
+    });
   }
 
   return output;
@@ -3633,7 +3668,8 @@ function normalizeNYXSources(
 function prepareAuthorizedNYXMemoryAction(
   parsed: NYXStructuredOutput,
   intent: ExplicitMemoryIntent,
-  settings: MemorySettings
+  settings: MemorySettings,
+  studioName: string
 ): MemoryUpdate | null {
   if (
     intent === "none" ||
@@ -3645,7 +3681,8 @@ function prepareAuthorizedNYXMemoryAction(
   return prepareMemoryUpdate(
     parsed.memoryUpdate,
     intent,
-    settings
+    settings,
+    studioName
   );
 }
 
@@ -3710,6 +3747,7 @@ function buildNYXResponseData(
     action: ExplicitMemoryIntent;
     message: string;
   },
+  memoryEnabled: boolean,
   provider: AIProvider,
   model: string
 ): NYXResponse {
@@ -3720,25 +3758,33 @@ function buildNYXResponseData(
       : ""
   ].join("");
 
-  const responseData = {
+  const deliverables = normalizeNYXDeliverables(
+    parsed.deliverables
+  );
+
+  // No live research provider is connected. Do not expose
+  // model-generated links as if NYX had verified them.
+  const sources = research.sources;
+
+  return {
     response: responseText,
     summary: parsed.summary,
     studio: context.studio,
     orchestration,
-    deliverables: normalizeNYXDeliverables(
-      parsed.deliverables
-    ),
-    sources: normalizeNYXSources(
-      parsed.sources
-    ),
+    deliverables,
+    sources,
     research,
+    researchRequested: research.requested,
+    researchAvailable: research.available,
+    researchVerified: research.verified,
+    researchDate: null,
     memory: memoryResult,
+    memoryAvailable: memoryEnabled,
+    memorySaved: memoryResult.success,
     productionStatus: parsed.productionStatus,
     provider,
     model
   };
-
-  return responseData as unknown as NYXResponse;
 }
 // ============================================
 // PART 6 — NYX CORE REQUEST HANDLER
@@ -3753,7 +3799,8 @@ async function handleNYXRequest(
 
   try {
     // 1. Authenticate user and validate request
-    const context = await buildRequestContext(request, body);
+    const { client, context } =
+      await buildRequestContext(request, body);
 
     // 2. Decide which studios should work together
     const orchestration = buildOrchestration(context);
@@ -3765,7 +3812,7 @@ async function handleNYXRequest(
 
     // 4. Load permitted user and project memory
     const memory = await loadMemoryContext(
-      context.client,
+      client,
       context.user.id,
       context.projectId
     );
@@ -3787,21 +3834,29 @@ async function handleNYXRequest(
       prepareAuthorizedNYXMemoryAction(
         generated.parsed,
         memoryIntent,
-        memory.settings
+        memory.settings,
+        context.studio.name
       );
 
     // 7. Only perform a memory action when it is authorized
-    let memoryResult = {
+    let memoryResult: {
+      success: boolean;
+      action: ExplicitMemoryIntent;
+      message: string;
+    } = {
       success: false,
+      action: "none",
       message: "No memory changes were made."
     };
 
     if (authorizedMemoryUpdate) {
       memoryResult = await processCreatorMemoryAction(
-        context.client,
+        client,
         context.user.id,
         context.projectId,
-        authorizedMemoryUpdate
+        authorizedMemoryUpdate,
+        memory.settings,
+        memoryIntent
       );
     }
 
@@ -3812,15 +3867,14 @@ async function handleNYXRequest(
       generated.parsed,
       research,
       memoryResult,
+      memory.settings.enabled,
       generated.provider,
       generated.model
     );
 
+    // Existing React clients read data.response directly.
     return new Response(
-      JSON.stringify({
-        success: true,
-        data: responseData
-      }),
+      JSON.stringify(responseData),
       {
         status: 200,
         headers: {
@@ -3947,7 +4001,42 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   try {
-    const body: unknown = await request.json();
+    const rawBody = await request.text();
+
+    if (new TextEncoder().encode(rawBody).byteLength > 1_000_000) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "The request is too large."
+        }),
+        {
+          status: 413,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Invalid JSON request body."
+        }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
 
     if (!isPlainObject(body)) {
       return new Response(
