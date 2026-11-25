@@ -933,9 +933,11 @@ async function verifyProjectOwnership(
 ------------------------- */
 
 const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
-  enabled: true,
-  allowPersonalMemory: true,
-  allowProjectMemory: true
+  // No settings row means the creator has not explicitly enabled
+  // automatic memory saving. Fail closed for privacy.
+  enabled: false,
+  allowPersonalMemory: false,
+  allowProjectMemory: false
 };
 
 function validateMemorySettings(
