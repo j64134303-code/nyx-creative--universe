@@ -142,45 +142,36 @@ STUDIO RULES:
     );
   }
 
-  if (!data || !data.response) {
+  const result = data?.data && typeof data.data === "object"
+    ? data.data
+    : data;
+
+  if (!result || typeof result.response !== "string" || !result.response.trim()) {
     throw new Error(
       "NYX CORE returned an empty response. Please try again."
     );
   }
 
   return {
-    response: data.response,
-    sources: Array.isArray(data.sources)
-      ? data.sources
-      : [],
-    provider: data.provider || "NYX CORE",
-    model: data.model || null,
-
-    // Preserve central intelligence decisions.
-    orchestration: data.orchestration || null,
-
-    // Preserve structured deliverable information
-    // when the backend begins returning it.
-    deliverables: Array.isArray(data.deliverables)
-      ? data.deliverables
-      : [],
-
+    response: result.response,
+    sources: Array.isArray(result.sources) ? result.sources : [],
+    provider: result.provider || "NYX CORE",
+    model: result.model || null,
+    orchestration: result.orchestration || null,
+    deliverables: Array.isArray(result.deliverables) ? result.deliverables : [],
     research: {
-      requested: Boolean(data.researchRequested),
-      available: Boolean(data.researchAvailable),
-      verified: Boolean(data.researchVerified),
-      date: data.researchDate || null
+      requested: Boolean(result.research?.requested ?? result.researchRequested),
+      available: Boolean(result.research?.available ?? result.researchAvailable),
+      verified: Boolean(result.research?.verified ?? result.researchVerified),
+      date: result.researchDate || null
     },
-
     memory: {
-      available: Boolean(data.memoryAvailable),
-      saved: Boolean(data.memorySaved)
+      available: Boolean(result.memory?.enabled ?? result.memoryAvailable),
+      saved: Boolean(result.memory?.success ?? result.memorySaved),
+      details: result.memory || null
     },
-
-    studio: studio.name,
-    productionStatus:
-      data.productionStatus || studio.production,
-
+    studio: result.studio?.name || studio.name,
+    productionStatus: result.productionStatus || studio.production,
     projectId
   };
 }
