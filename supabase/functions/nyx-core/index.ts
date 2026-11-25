@@ -3798,7 +3798,12 @@ async function persistStudioTaskPlan(
 
   let previousTaskId: string | null = null;
 
-  for (const [sequence, studioId] of orchestration.selectedStudios.entries()) {
+  const executionOrder = buildStudioWorkflowOrder(
+    orchestration.selectedStudios,
+    orchestration.leadStudio
+  );
+
+  for (const [sequence, studioId] of executionOrder.entries()) {
     const studio = getStudio(studioId);
     if (!studio) continue;
 
@@ -3879,29 +3884,85 @@ async function executeStudioCollaboration(
     if (!studio) continue;
 
     if (task.studioId === orchestration.leadStudio) {
+      const startedAt = new Date().toISOString();
+      const { error: startError } = await client
+        .from("nyx_studio_tasks")
+        .update({ status: "running", started_at: startedAt })
+        .eq("id", task.id)
+        .eq("user_id", context.user.id);
+
+      if (startError) {
+        throw new Error("NYX could not start the lead studio integration.");
+      }
+
+      let integratedOutput = leadOutput;
+
+      if (studioOutputs.length > 0) {
+        const integrationMessages: NYXProviderMessage[] = [
+          {
+            role: "system",
+            content: [
+              `You are the lead ${studio.name} inside NYX Creative Universe.`,
+              studio.description,
+              "You are responsible for integrating specialist studio work into one coherent response.",
+              "Review the original creator brief and every completed specialist contribution.",
+              "Resolve contradictions carefully, preserve the creator's direction, and identify assumptions or gaps.",
+              "Do not merely append the contributions. Synthesize them into a useful, coherent result.",
+              "Do not claim research, media generation, file creation, rendering or publishing occurred unless a connected service actually did it.",
+              "Return the integrated response in clear, practical language. Do not return JSON."
+            ].join("\\n")
+          },
+          {
+            role: "user",
+            content: [
+              "CREATOR'S ORIGINAL BRIEF:",
+              context.message,
+              "",
+              "LEAD STUDIO'S INITIAL RESPONSE:",
+              leadOutput,
+              "",
+              "COMPLETED SPECIALIST CONTRIBUTIONS:",
+              ...studioOutputs,
+              "",
+              "Integrate the completed specialist work into the final lead-studio response."
+            ].join("\\n")
+          }
+        ];
+
+        const integration = await runNYXIntelligence(integrationMessages);
+        integratedOutput = integration.content.trim();
+
+        if (!integratedOutput) {
+          throw new Error("The lead studio returned an empty integrated response.");
+        }
+      }
+
+      const finishedAt = new Date().toISOString();
       const { error } = await client
         .from("nyx_studio_tasks")
         .update({
           status: "completed",
-          started_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
+          completed_at: finishedAt,
           result: {
-            output: leadOutput,
+            output: integratedOutput,
             reviewRequired: true,
-            outputType: "lead_studio_response"
+            outputType: studioOutputs.length > 0
+              ? "integrated_lead_studio_response"
+              : "lead_studio_response"
           }
         })
         .eq("id", task.id)
         .eq("user_id", context.user.id);
 
-      if (error) throw new Error("NYX could not save the lead studio output.");
-      studioOutputs.push(`LEAD STUDIO — ${studio.name}:\\n${leadOutput}`);
+      if (error) throw new Error("NYX could not save the integrated lead studio output.");
+
+      studioOutputs.push(`LEAD STUDIO — ${studio.name}:\\n${integratedOutput}`);
       contributions.push({
         taskId: task.id,
         studioId: studio.id,
         studioName: studio.name,
         status: "completed",
-        output: leadOutput
+        output: integratedOutput
       });
       continue;
     }
@@ -4002,7 +4063,9 @@ async function executeStudioCollaboration(
         status: "failed",
         output: message
       });
-      break;
+      // Continue so other specialists can still contribute and the
+      // lead studio can integrate any successful outputs.
+      continue;
     }
   }
 
@@ -4063,6 +4126,16 @@ async function handleNYXRequest(
       taskPlan,
       generated.parsed.response
     );
+
+    const integratedLeadContribution = collaborationContributions.find(
+      item =>
+        item.studioId === orchestration.leadStudio &&
+        item.status === "completed"
+    );
+
+    if (integratedLeadContribution) {
+      generated.parsed.response = integratedLeadContribution.output;
+    }
 
     // 8. Check whether the user explicitly requested a memory action
     const memoryIntent = detectExplicitMemoryIntent(
