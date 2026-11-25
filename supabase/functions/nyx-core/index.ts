@@ -3850,6 +3850,165 @@ async function persistStudioTaskPlan(
   return created;
 }
 
+/* -------------------------
+   EXECUTE SPECIALIST STUDIO HANDOFFS
+   Each supporting studio receives the same brief
+   plus the previous studio outputs. Outputs are
+   persisted before the next handoff begins.
+------------------------- */
+
+async function executeStudioCollaboration(
+  client: ReturnType<typeof createUserSupabaseClient>,
+  context: RequestContext,
+  orchestration: Orchestration,
+  taskPlan: Array<{ id: string; studioId: string; status: string; sequence: number }>,
+  leadOutput: string
+): Promise<Array<{ taskId: string; studioId: string; studioName: string; status: string; output: string }>> {
+  const contributions: Array<{
+    taskId: string;
+    studioId: string;
+    studioName: string;
+    status: string;
+    output: string;
+  }> = [];
+
+  const studioOutputs: string[] = [];
+
+  for (const task of taskPlan) {
+    const studio = getStudio(task.studioId);
+    if (!studio) continue;
+
+    if (task.studioId === orchestration.leadStudio) {
+      const { error } = await client
+        .from("nyx_studio_tasks")
+        .update({
+          status: "completed",
+          started_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          result: {
+            output: leadOutput,
+            reviewRequired: true,
+            outputType: "lead_studio_response"
+          }
+        })
+        .eq("id", task.id)
+        .eq("user_id", context.user.id);
+
+      if (error) throw new Error("NYX could not save the lead studio output.");
+      studioOutputs.push(`LEAD STUDIO — ${studio.name}:\\n${leadOutput}`);
+      contributions.push({
+        taskId: task.id,
+        studioId: studio.id,
+        studioName: studio.name,
+        status: "completed",
+        output: leadOutput
+      });
+      continue;
+    }
+
+    const startedAt = new Date().toISOString();
+    const { error: startError } = await client
+      .from("nyx_studio_tasks")
+      .update({ status: "running", started_at: startedAt })
+      .eq("id", task.id)
+      .eq("user_id", context.user.id);
+
+    if (startError) throw new Error(`NYX could not start the ${studio.name} handoff.`);
+
+    try {
+      const responsibility = (orchestration.responsibilities[studio.id] ?? []).join("\\n");
+      const handoffMessages: NYXProviderMessage[] = [
+        {
+          role: "system",
+          content: [
+            `You are the ${studio.name} specialist inside NYX Creative Universe.`,
+            studio.description,
+            "Work only on this studio's specialist contribution.",
+            "Use the creator brief and prior studio outputs below as shared project context.",
+            "Produce a concrete, useful contribution that the lead studio can integrate.",
+            "Do not claim external research, media generation, rendering, publishing or file creation occurred unless a connected service actually did it.",
+            "Clearly label assumptions and anything needing creator approval.",
+            "Keep the contribution focused and practical."
+          ].join("\\n")
+        },
+        {
+          role: "user",
+          content: [
+            "CREATOR'S ORIGINAL BRIEF:",
+            context.message,
+            "",
+            "THIS STUDIO'S RESPONSIBILITIES:",
+            responsibility,
+            "",
+            "SHARED PROJECT CONTEXT AND PREVIOUS HANDOFFS:",
+            ...studioOutputs,
+            "",
+            "Create this studio's contribution now."
+          ].join("\\n")
+        }
+      ];
+
+      const result = await runNYXIntelligence(handoffMessages);
+      const output = result.content.trim();
+
+      if (!output) throw new Error("The specialist returned an empty contribution.");
+
+      const finishedAt = new Date().toISOString();
+      const { error: saveError } = await client
+        .from("nyx_studio_tasks")
+        .update({
+          status: "completed",
+          completed_at: finishedAt,
+          result: {
+            output,
+            provider: result.provider,
+            model: result.model,
+            reviewRequired: true,
+            outputType: "specialist_contribution"
+          }
+        })
+        .eq("id", task.id)
+        .eq("user_id", context.user.id);
+
+      if (saveError) throw new Error("Could not persist the specialist output.");
+
+      studioOutputs.push(`SUPPORTING STUDIO — ${studio.name}:\\n${output}`);
+      contributions.push({
+        taskId: task.id,
+        studioId: studio.id,
+        studioName: studio.name,
+        status: "completed",
+        output
+      });
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message.slice(0, 500)
+        : "Specialist execution failed.";
+
+      await client
+        .from("nyx_studio_tasks")
+        .update({
+          status: "failed",
+          error_message: message,
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", task.id)
+        .eq("user_id", context.user.id);
+
+      contributions.push({
+        taskId: task.id,
+        studioId: studio.id,
+        studioName: studio.name,
+        status: "failed",
+        output: message
+      });
+      break;
+    }
+  }
+
+  return contributions;
+}
+
 // ============================================
 // PART 6 — NYX CORE REQUEST HANDLER
 // ============================================
@@ -3896,7 +4055,16 @@ async function handleNYXRequest(
       orchestration
     );
 
-    // 7. Check whether the user explicitly requested a memory action
+    // 7. Run specialist handoffs in sequence and persist each actual output.
+    const collaborationContributions = await executeStudioCollaboration(
+      client,
+      context,
+      orchestration,
+      taskPlan,
+      generated.parsed.response
+    );
+
+    // 8. Check whether the user explicitly requested a memory action
     const memoryIntent = detectExplicitMemoryIntent(
       context.message
     );
@@ -3944,8 +4112,15 @@ async function handleNYXRequest(
       taskPlan,
       collaboration: {
         persisted: taskPlan.length > 0,
-        status: taskPlan.length > 0 ? "planned" : "not_persisted",
-        note: "Studio assignments are recorded. Actual specialist execution and output handoffs require connected studio execution services."
+        status: collaborationContributions.some(item => item.status === "failed")
+          ? "partially_completed"
+          : collaborationContributions.length > 1
+            ? "completed"
+            : taskPlan.length > 0
+              ? "lead_only"
+              : "not_persisted",
+        tasks: collaborationContributions,
+        note: "Specialist AI contributions were generated sequentially and saved to their studio task records. Each contribution remains subject to creator review; external media production still requires connected production services."
       }
     };
 
