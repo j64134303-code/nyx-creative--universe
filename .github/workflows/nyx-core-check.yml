@@ -25,3 +25,5 @@ jobs:
         run: deno check supabase/functions/nyx-core/index.ts
 
 # Re-run validation after the latest NYX CORE source corrections.
+
+# Validate latest memory type guard correction.
