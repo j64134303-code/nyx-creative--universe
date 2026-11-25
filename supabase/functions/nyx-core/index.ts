@@ -354,6 +354,16 @@ type MemoryContext = {
   contextText: string;
 };
 
+type ProjectCanonIntent = "propose" | "revise" | "approve" | "none";
+
+type ProjectCanonState = {
+  approved: Record<string, unknown> | null;
+  draft: Record<string, unknown> | null;
+  version: number;
+  metadata: Record<string, unknown>;
+  persisted: boolean;
+};
+
 type ResearchResult = {
   requested: boolean;
   available: boolean;
@@ -2137,6 +2147,119 @@ async function loadMemoryContext(
     records,
     contextText: formatMemoryContext(records)
   };
+}
+
+/* -------------------------
+   10A. SHARED PROJECT CANON
+   Stored in nyx_projects.metadata so
+   existing projects need no new table.
+------------------------- */
+
+function sanitizeCanonValue(value: unknown, depth = 0): unknown {
+  if (depth > 6) return undefined;
+  if (value === null || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") return safeString(value, 4000);
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map(item => sanitizeCanonValue(item, depth + 1)).filter(item => item !== undefined);
+  }
+  if (!isPlainObject(value)) return undefined;
+  const output: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value).slice(0, 50)) {
+    if (["__proto__", "constructor", "prototype"].includes(key)) continue;
+    const safeKey = safeString(key, 80);
+    if (!safeKey) continue;
+    const safeValue = sanitizeCanonValue(item, depth + 1);
+    if (safeValue !== undefined) output[safeKey] = safeValue;
+  }
+  return output;
+}
+
+function validateProjectCanon(value: unknown): Record<string, unknown> | null {
+  if (!isPlainObject(value)) return null;
+  const sanitized = sanitizeCanonValue(value);
+  if (!isPlainObject(sanitized)) return null;
+  const serialized = JSON.stringify(sanitized);
+  if (!serialized || serialized.length < 10 || serialized.length > 30000) return null;
+  return sanitized;
+}
+
+function detectProjectCanonIntent(message: string): ProjectCanonIntent {
+  const text = normalizeStudioKeywordText(message);
+  if (!/\\bcanon\\b/.test(text)) return "none";
+  if (/\\b(approve|accept|finalize|lock)\\b/.test(text)) return "approve";
+  if (/\\b(revise|update|change|edit|correct|rework|replace)\\b/.test(text)) return "revise";
+  if (/\\b(establish|create|define|draft|build|set|show|confirm|review)\\b/.test(text)) return "propose";
+  return "none";
+}
+
+async function loadProjectCanon(client: ReturnType<typeof createUserSupabaseClient>, userId: string, projectId: string | null): Promise<ProjectCanonState> {
+  if (!projectId) return { approved: null, draft: null, version: 0, metadata: {}, persisted: false };
+  const { data, error } = await client.from("nyx_projects").select("metadata").eq("id", projectId).eq("user_id", userId).maybeSingle();
+  if (error || !data) throw new Error("Unable to load the shared project canon.");
+  const metadata = isPlainObject(data.metadata) ? data.metadata : {};
+  const stored = isPlainObject(metadata.nyxCanon) ? metadata.nyxCanon : {};
+  return {
+    approved: validateProjectCanon(stored.approved),
+    draft: validateProjectCanon(stored.draft),
+    version: typeof stored.version === "number" && Number.isFinite(stored.version) ? Math.max(0, Math.floor(stored.version)) : 0,
+    metadata,
+    persisted: true
+  };
+}
+
+function formatProjectCanonContext(canon: ProjectCanonState): string {
+  if (canon.approved) {
+    return [
+      "APPROVED SHARED PROJECT CANON — AUTHORITATIVE",
+      "This canon is the single source of truth for every studio.",
+      "Do not rename, contradict, replace or silently expand established facts, main characters, setting, timeline or storyline.",
+      "If a creator request conflicts with canon, explain the conflict and ask for approval before changing canon.",
+      JSON.stringify(canon.approved, null, 2),
+      canon.draft ? "A revision draft exists but is NOT approved. Continue following the approved canon until the creator approves the draft." : ""
+    ].join("\\n");
+  }
+  if (canon.draft) {
+    return [
+      "UNAPPROVED PROJECT CANON DRAFT",
+      "This is a proposal for creator review, not approved canon.",
+      "Do not treat it as permission to begin production or alter project facts.",
+      JSON.stringify(canon.draft, null, 2)
+    ].join("\\n");
+  }
+  return "No shared project canon has been approved yet. Do not invent or claim that a canon has been saved.";
+}
+
+async function saveProjectCanonDraft(client: ReturnType<typeof createUserSupabaseClient>, userId: string, projectId: string | null, current: ProjectCanonState, draftValue: unknown): Promise<ProjectCanonState> {
+  const draft = validateProjectCanon(draftValue);
+  if (!draft) throw new Error("NYX did not return a valid project canon draft.");
+  if (!projectId || !current.persisted) return { ...current, draft, persisted: false };
+  const nextMetadata = { ...current.metadata, nyxCanon: { approved: current.approved, draft, version: current.version, updatedAt: new Date().toISOString() } };
+  const { data, error } = await client.from("nyx_projects").update({ metadata: nextMetadata }).eq("id", projectId).eq("user_id", userId).select("id").maybeSingle();
+  if (error || !data) throw new Error("NYX could not save the project canon draft.");
+  return { ...current, draft, metadata: nextMetadata, persisted: true };
+}
+
+async function approveProjectCanonDraft(client: ReturnType<typeof createUserSupabaseClient>, userId: string, projectId: string | null, current: ProjectCanonState): Promise<ProjectCanonState> {
+  if (!current.draft) return current;
+  if (!projectId || !current.persisted) throw new Error("This project has no saved draft canon to approve.");
+  const nextMetadata = { ...current.metadata, nyxCanon: { approved: current.draft, draft: null, version: current.version + 1, updatedAt: new Date().toISOString() } };
+  const { data, error } = await client.from("nyx_projects").update({ metadata: nextMetadata }).eq("id", projectId).eq("user_id", userId).select("id").maybeSingle();
+  if (error || !data) throw new Error("NYX could not approve the project canon.");
+  return { ...current, approved: current.draft, draft: null, version: current.version + 1, metadata: nextMetadata, persisted: true };
+}
+
+function buildProjectCanonInstructions(intent: ProjectCanonIntent): string {
+  return [
+    "SHARED PROJECT CANON CONTROL",
+    "Creator canon instruction: " + intent,
+    "The project canon is a structured, persistent source of truth shared by every studio.",
+    "For propose or revise: return a complete projectCanon object in the structured JSON. Keep existing approved facts unless the creator explicitly requested a change. Put uncertain or newly invented choices in openQuestions or itemsRequiringApproval. Never mark a draft as approved.",
+    "Use a reusable structure where appropriate: projectTitle, format, genre, setting, era, premise, worldRules, mainCharacters, storyline, toneAndStyle, creatorConstraints, openQuestions, itemsRequiringApproval.",
+    "The mainCharacters list must contain only creator-approved main characters. Do not silently add or rename main characters.",
+    "Do not trigger specialist studio work while the creator is establishing or revising canon. Show the canon for review first.",
+    "For approve: the server will approve only an existing saved draft after an explicit creator instruction. Do not create a new canon or claim approval if no draft exists."
+  ].join("\\n");
 }
 
 /* -------------------------
