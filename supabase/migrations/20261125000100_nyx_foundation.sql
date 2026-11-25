@@ -1,5 +1,5 @@
 -- NYX shared foundation
--- Safe to apply to a project that does not yet contain these NYX tables.
+-- Additive migration: preserves existing NYX tables and legacy columns.
 -- All creator-owned records are protected by Row Level Security.
 
 create extension if not exists pgcrypto;
@@ -27,6 +27,27 @@ create table if not exists public.nyx_projects (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+-- Add CORE fields without removing legacy project columns.
+alter table public.nyx_projects
+  add column if not exists description text not null default '',
+  add column if not exists lead_studio_id text,
+  add column if not exists status text not null default 'active',
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+
+do $
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'nyx_projects_status_check'
+      and conrelid = 'public.nyx_projects'::regclass
+  ) then
+    alter table public.nyx_projects
+      add constraint nyx_projects_status_check
+      check (status in ('active', 'paused', 'completed', 'archived'));
+  end if;
+end;
+$;
+
 create index if not exists nyx_projects_user_updated_idx
   on public.nyx_projects (user_id, updated_at desc);
 
@@ -41,6 +62,12 @@ create table if not exists public.nyx_memory_settings (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+-- Keep the legacy auto_save_enabled setting and add CORE's granular controls.
+alter table public.nyx_memory_settings
+  add column if not exists enabled boolean not null default true,
+  add column if not exists allow_personal_memory boolean not null default true,
+  add column if not exists allow_project_memory boolean not null default true;
 
 create table if not exists public.nyx_core_memory (
   id uuid primary key default gen_random_uuid(),
@@ -210,7 +237,7 @@ create policy "NYX users manage their memory" on public.nyx_core_memory
       project_id is null
       or exists (
         select 1 from public.nyx_projects p
-        where p.id = project_id and p.user_id = auth.uid()
+        where p.id = nyx_core_memory.project_id and p.user_id = auth.uid()
       )
     )
   );
@@ -224,7 +251,7 @@ create policy "NYX users manage their conversations" on public.nyx_conversations
       project_id is null
       or exists (
         select 1 from public.nyx_projects p
-        where p.id = project_id and p.user_id = auth.uid()
+        where p.id = nyx_conversations.project_id and p.user_id = auth.uid()
       )
     )
   );
@@ -236,7 +263,7 @@ create policy "NYX users manage their messages" on public.nyx_messages
     auth.uid() = user_id
     and exists (
       select 1 from public.nyx_conversations c
-      where c.id = conversation_id and c.user_id = auth.uid()
+      where c.id = nyx_messages.conversation_id and c.user_id = auth.uid()
     )
   );
 
@@ -247,7 +274,7 @@ create policy "NYX users manage their studio tasks" on public.nyx_studio_tasks
     auth.uid() = user_id
     and exists (
       select 1 from public.nyx_projects p
-      where p.id = project_id and p.user_id = auth.uid()
+      where p.id = nyx_studio_tasks.project_id and p.user_id = auth.uid()
     )
   );
 
@@ -258,7 +285,7 @@ create policy "NYX users manage their project assets" on public.nyx_project_asse
     auth.uid() = user_id
     and exists (
       select 1 from public.nyx_projects p
-      where p.id = project_id and p.user_id = auth.uid()
+      where p.id = nyx_project_assets.project_id and p.user_id = auth.uid()
     )
   );
 
@@ -269,7 +296,7 @@ create policy "NYX users manage their research sources" on public.nyx_research_s
     auth.uid() = user_id
     and exists (
       select 1 from public.nyx_projects p
-      where p.id = project_id and p.user_id = auth.uid()
+      where p.id = nyx_research_sources.project_id and p.user_id = auth.uid()
     )
   );
 
