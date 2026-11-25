@@ -475,11 +475,15 @@ export default function App() {
 
       if (error) throw new Error(await getServerError(error));
 
-      if (!data?.response) {
+      const result = data?.data && typeof data.data === "object"
+        ? data.data
+        : data;
+
+      if (typeof result?.response !== "string" || !result.response.trim()) {
         throw new Error(data?.error || "NYX did not return a response.");
       }
 
-      addAssistantMessage(conversationId, data.response);
+      addAssistantMessage(conversationId, result.response);
     } catch (error) {
       console.error("NYX CORE error:", error);
 
