@@ -452,9 +452,13 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
       if (data?.error) throw new Error(data.error);
 
+      const result = data?.data && typeof data.data === "object"
+        ? data.data
+        : data;
+
       const rawAnswer =
-        typeof data?.response === "string"
-          ? data.response.trim()
+        typeof result?.response === "string"
+          ? result.response.trim()
           : "";
 
       if (!rawAnswer) {
@@ -465,7 +469,7 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
 
       const prepared = prepareAnswer(
         rawAnswer,
-        data?.sources
+        result?.sources
       );
 
       const assistantMessage = {
@@ -473,9 +477,9 @@ export default function ResearchHub({ studio, onBack, onAttach }) {
         role: "assistant",
         content: prepared.content || cleanResearchText(rawAnswer),
         sources: prepared.sources,
-        provider: data.provider || "Groq",
-        core: data.core || "NYX CORE",
-        researchRequested: Boolean(data.researchRequested),
+        provider: result.provider || "Groq",
+        core: result.core || "NYX CORE",
+        researchRequested: Boolean(result.research?.requested ?? result.researchRequested),
         createdAt: new Date().toISOString()
       };
 
