@@ -2567,3 +2567,79 @@ p { color: var(--muted); line-height: 1.7; }
     padding-right: 25px;
   }
 }
+
+
+/* NYX CHAT — stable composer and visible typing area */
+.nyx-chat-screen {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.nyx-chat-screen .nyx-chat-header {
+  flex: 0 0 auto;
+}
+
+.nyx-chat-screen .nyx-chat-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.nyx-chat-screen .nyx-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nyx-chat-screen .nyx-composer-area {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: #0b0712;
+}
+
+.nyx-chat-screen .nyx-composer {
+  align-items: flex-end;
+}
+
+.nyx-chat-screen .nyx-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 25px;
+  max-height: 132px;
+  height: 25px;
+  overflow-y: hidden;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  caret-color: #c4a5fd;
+  -webkit-text-fill-color: #ffffff;
+  opacity: 1;
+  line-height: 1.5;
+}
+
+.nyx-chat-screen .nyx-composer textarea:focus {
+  outline: none;
+}
+
+@media (max-width: 600px) {
+  .nyx-chat-screen {
+    height: 100dvh;
+    height: 100svh;
+  }
+
+  .nyx-chat-screen .nyx-composer-area {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
