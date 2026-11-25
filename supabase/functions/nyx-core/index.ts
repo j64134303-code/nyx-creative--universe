@@ -3740,3 +3740,248 @@ function buildNYXResponseData(
 
   return responseData as unknown as NYXResponse;
 }
+// ============================================
+// PART 6 — NYX CORE REQUEST HANDLER
+// ============================================
+
+async function handleNYXRequest(
+  request: Request,
+  body: Record<string, unknown>
+): Promise<Response> {
+  const origin = request.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
+  try {
+    // 1. Authenticate user and validate request
+    const context = await buildRequestContext(request, body);
+
+    // 2. Decide which studios should work together
+    const orchestration = buildOrchestration(context);
+
+    // 3. Prepare research context
+    const research = createResearchResult(
+      detectResearchRequest(context.message)
+    );
+
+    // 4. Load permitted user and project memory
+    const memory = await loadMemoryContext(
+      context.client,
+      context.user.id,
+      context.projectId
+    );
+
+    // 5. Generate NYX intelligence response
+    const generated = await generateNYXStructuredResponse(
+      context,
+      orchestration,
+      memory,
+      research
+    );
+
+    // 6. Check whether the user explicitly requested a memory action
+    const memoryIntent = detectExplicitMemoryIntent(
+      context.message
+    );
+
+    const authorizedMemoryUpdate =
+      prepareAuthorizedNYXMemoryAction(
+        generated.parsed,
+        memoryIntent,
+        memory.settings
+      );
+
+    // 7. Only perform a memory action when it is authorized
+    let memoryResult = {
+      success: false,
+      message: "No memory changes were made."
+    };
+
+    if (authorizedMemoryUpdate) {
+      memoryResult = await processCreatorMemoryAction(
+        context.client,
+        context.user.id,
+        context.projectId,
+        authorizedMemoryUpdate
+      );
+    }
+
+    // 8. Prepare the final response
+    const responseData = buildNYXResponseData(
+      context,
+      orchestration,
+      generated.parsed,
+      research,
+      memoryResult,
+      generated.provider,
+      generated.model
+    );
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: responseData
+      }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error("NYX CORE request failed:", error);
+
+    const message = getSafeErrorMessage(error);
+
+    const status =
+      error instanceof Error &&
+      "status" in error &&
+      typeof (error as { status?: unknown }).status === "number"
+        ? (error as { status: number }).status
+        : 500;
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: message
+      }),
+      {
+        status,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+}// ============================================
+// PART 6 — HTTP ENTRY POINT
+// ============================================
+
+Deno.serve(async (request: Request): Promise<Response> => {
+  const origin = request.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
+  // Handle browser preflight requests
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
+  }
+
+  // Reject unsupported origins
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "This origin is not allowed."
+      }),
+      {
+        status: 403,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  // Only accept POST requests
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Only POST requests are supported."
+      }),
+      {
+        status: 405,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  // Require JSON
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "A JSON request body is required."
+      }),
+      {
+        status: 415,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  // Limit request size
+  const contentLength = Number(
+    request.headers.get("content-length") ?? "0"
+  );
+
+  if (contentLength > 1_000_000) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "The request is too large."
+      }),
+      {
+        status: 413,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+
+  try {
+    const body: unknown = await request.json();
+
+    if (!isPlainObject(body)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "The request body must be a JSON object."
+        }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+    }
+
+    return await handleNYXRequest(request, body);
+
+  } catch (error) {
+    console.error("NYX CORE HTTP error:", error);
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "NYX could not process this request."
+      }),
+      {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+});
