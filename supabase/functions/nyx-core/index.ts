@@ -3402,6 +3402,7 @@ type NYXStructuredOutput = {
     | "ready"
     | "requires_service";
   memoryUpdate: unknown | null;
+  projectCanon: Record<string, unknown> | null;
 };
 
 function createEmptyStructuredOutput(
@@ -3414,7 +3415,8 @@ function createEmptyStructuredOutput(
     sources: [],
     followUpQuestion: null,
     productionStatus: "planning",
-    memoryUpdate: null
+    memoryUpdate: null,
+    projectCanon: null
   };
 }
 
@@ -3583,7 +3585,8 @@ function validateNYXStructuredOutput(
     memoryUpdate:
       isPlainObject(value.memoryUpdate)
         ? value.memoryUpdate
-        : null
+        : null,
+    projectCanon: validateProjectCanon(value.projectCanon)
   };
 }
 
@@ -3638,7 +3641,8 @@ function buildStructuredOutputInstructions(
     '  "sources": [],',
     '  "followUpQuestion": null,',
     '  "productionStatus": "planning",',
-    '  "memoryUpdate": null',
+    '  "memoryUpdate": null,',
+    '  "projectCanon": null',
     "}",
     "",
     "DELIVERABLE RULES",
@@ -3811,7 +3815,8 @@ async function generateNYXStructuredResponse(
   context: RequestContext,
   orchestration: Orchestration,
   memory: MemoryContext,
-  research: ResearchResult
+  research: ResearchResult,
+  canonIntent: ProjectCanonIntent = "none"
 ): Promise<{
   parsed: NYXStructuredOutput;
   provider: AIProvider;
@@ -3833,7 +3838,10 @@ async function generateNYXStructuredResponse(
     "\n\n" +
     buildMemoryActionInstructions(intent) +
     "\n\n" +
-    buildStructuredOutputInstructions(intent);
+    buildStructuredOutputInstructions(intent) +
+    (canonIntent !== "none"
+      ? "\n\n" + buildProjectCanonInstructions(canonIntent)
+      : "");
 
   const result = await runNYXIntelligence(
     messages
@@ -4056,6 +4064,9 @@ async function executeStudioCollaboration(
               "Produce a concrete, useful contribution that the lead studio can integrate.",
               "Do not claim external research, media generation, rendering, publishing or file creation occurred unless a connected service actually did it.",
               "Clearly label assumptions and anything needing creator approval.",
+              "Follow the APPROVED SHARED PROJECT CANON exactly when one is supplied.",
+              "Do not create or rename main characters, locations, timelines, rules or major plot facts that contradict approved canon.",
+              "If a request conflicts with canon, flag the conflict instead of silently changing it.",
               "Keep the contribution focused and practical."
             ].join("\n")
           },
@@ -4070,6 +4081,9 @@ async function executeStudioCollaboration(
               "",
               "SHARED PROJECT CONTEXT:",
               context.studioContext || "No additional studio context supplied.",
+              "",
+              "CENTRAL MEMORY AND SHARED PROJECT CANON:",
+              memory.contextText,
               "",
               "Create this studio's contribution now."
             ].join("\n")
@@ -4284,12 +4298,30 @@ async function handleNYXRequest(
       context.projectId
     );
 
-    // 5. Persist the ordered collaboration plan.
-    const taskPlan = await persistStudioTaskPlan(
+    // Load the shared canon from the authenticated project record.
+    let projectCanon = await loadProjectCanon(
       client,
-      context,
-      orchestration
+      context.user.id,
+      context.projectId
     );
+    const canonIntent = detectProjectCanonIntent(context.message);
+    memory.contextText += "\n\n" + formatProjectCanonContext(projectCanon);
+
+    // Explicit approval promotes only a previously saved draft.
+    if (canonIntent === "approve" && projectCanon.draft) {
+      projectCanon = await approveProjectCanonDraft(
+        client,
+        context.user.id,
+        context.projectId,
+        projectCanon
+      );
+      memory.contextText = formatProjectCanonContext(projectCanon);
+    }
+
+    // Canon drafting/review is a creator approval stage, not a studio handoff.
+    const taskPlan = canonIntent === "none"
+      ? await persistStudioTaskPlan(client, context, orchestration)
+      : [];
 
     // 6. A single-studio request uses the normal response path.
     // Multi-studio requests skip the preliminary lead call: supporting
@@ -4308,7 +4340,7 @@ async function handleNYXRequest(
       output: string;
     }> = [];
 
-    if (orchestration.selectedStudios.length > 1 && taskPlan.length > 0) {
+    if (canonIntent === "none" && orchestration.selectedStudios.length > 1 && taskPlan.length > 0) {
       const collaboration = await executeStudioCollaboration(
         client,
         context,
@@ -4340,7 +4372,8 @@ async function handleNYXRequest(
         context,
         orchestration,
         memory,
-        research
+        research,
+        canonIntent
       );
 
       if (taskPlan.length > 0) {
@@ -4360,6 +4393,19 @@ async function handleNYXRequest(
     const memoryIntent = detectExplicitMemoryIntent(
       context.message
     );
+
+    if (
+      (canonIntent === "propose" || canonIntent === "revise") &&
+      generated.parsed.projectCanon
+    ) {
+      projectCanon = await saveProjectCanonDraft(
+        client,
+        context.user.id,
+        context.projectId,
+        projectCanon,
+        generated.parsed.projectCanon
+      );
+    }
 
     const authorizedMemoryUpdate =
       prepareAuthorizedNYXMemoryAction(
@@ -4402,6 +4448,18 @@ async function handleNYXRequest(
         generated.model
       ),
       taskPlan,
+      projectCanon: {
+        status: projectCanon.approved
+          ? projectCanon.draft
+            ? "approved_with_pending_draft"
+            : "approved"
+          : projectCanon.draft
+            ? "draft"
+            : "not_set",
+        version: projectCanon.version,
+        persisted: projectCanon.persisted,
+        approvalRequired: Boolean(projectCanon.draft)
+      },
       collaboration: {
         persisted: taskPlan.length > 0,
         status: collaborationContributions.some(item => item.status === "failed")
@@ -4415,6 +4473,20 @@ async function handleNYXRequest(
         note: "Supporting studio AI contributions were generated concurrently and saved to their studio task records. The lead studio then integrated the completed contributions. Each contribution remains subject to creator review; external media production still requires connected production services."
       }
     };
+
+    if (canonIntent === "propose" || canonIntent === "revise") {
+      if (projectCanon.draft && projectCanon.persisted) {
+        responseData.response += "\n\n**Shared project canon draft saved.** It is not active until you explicitly approve it. No studio production handoffs were started.";
+      } else if (projectCanon.draft && !projectCanon.persisted) {
+        responseData.response += "\n\n**Canon draft prepared but not saved.** Select a saved project so NYX can attach this canon to its project record. No studio production handoffs were started.";
+      } else {
+        responseData.response += "\n\nNYX could not produce a structured canon draft, so nothing was saved.";
+      }
+    } else if (canonIntent === "approve") {
+      responseData.response += projectCanon.approved
+        ? "\n\n**Shared project canon approved and active.**"
+        : "\n\nThere was no saved canon draft to approve.";
+    }
 
     const completedHandoffs = collaborationContributions.filter(
       item => item.studioId !== orchestration.leadStudio && item.status === "completed"
