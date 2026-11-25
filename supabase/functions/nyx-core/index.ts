@@ -2186,10 +2186,10 @@ function validateProjectCanon(value: unknown): Record<string, unknown> | null {
 
 function detectProjectCanonIntent(message: string): ProjectCanonIntent {
   const text = normalizeStudioKeywordText(message);
-  if (!/\\bcanon\\b/.test(text)) return "none";
-  if (/\\b(approve|accept|finalize|lock)\\b/.test(text)) return "approve";
-  if (/\\b(revise|update|change|edit|correct|rework|replace)\\b/.test(text)) return "revise";
-  if (/\\b(establish|create|define|draft|build|set|show|confirm|review)\\b/.test(text)) return "propose";
+  if (!/\bcanon\b/.test(text)) return "none";
+  if (/\b(approve|accept|finalize|lock)\b/.test(text)) return "approve";
+  if (/\b(revise|update|change|edit|correct|rework|replace)\b/.test(text)) return "revise";
+  if (/\b(establish|create|define|draft|build|set|show|confirm|review)\b/.test(text)) return "propose";
   return "none";
 }
 
