@@ -2307,8 +2307,9 @@ function prepareMemoryUpdate(
   const action = input.action;
 
   if (
+    typeof action !== "string" ||
     action !== explicitIntent ||
-    !VALID_MEMORY_ACTIONS.has(action)
+    !VALID_MEMORY_ACTIONS.has(action as ExplicitMemoryIntent)
   ) {
     return null;
   }
@@ -3579,12 +3580,12 @@ function normalizeNYXDeliverables(
 
     if (!title || !description) continue;
 
-    const status =
+    const status: Deliverable["status"] =
       typeof value.status === "string" &&
       VALID_DELIVERABLE_STATUSES.has(
         value.status as Deliverable["status"]
       )
-        ? value.status
+        ? value.status as Deliverable["status"]
         : "draft";
 
     output.push({
