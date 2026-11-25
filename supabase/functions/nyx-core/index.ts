@@ -1164,7 +1164,11 @@ const STUDIO_KEYWORDS: Record<string, string[]> = {
     "research", "investigate", "discover",
     "references", "trends", "facts", "sources",
     "inspiration", "market research",
-    "creative research", "reference material"
+    "creative research", "reference material",
+    "ancient history", "mythology", "folklore",
+    "archaeology", "traditional knowledge",
+    "historical sources", "current trends",
+    "emerging technology"
   ]
 };
 
@@ -1777,7 +1781,22 @@ const RESEARCH_KEYWORDS = [
   "statistics",
   "inspiration",
   "reference images",
-  "reference material"
+  "reference material",
+  "ancient history",
+  "ancient civilizations",
+  "historical research",
+  "historical sources",
+  "archaeology",
+  "mythology",
+  "folklore",
+  "oral traditions",
+  "traditional knowledge",
+  "historical techniques",
+  "classical literature",
+  "cultural heritage",
+  "latest developments",
+  "current trends",
+  "emerging technology"
 ];
 
 function detectResearchRequest(
