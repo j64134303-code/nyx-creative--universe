@@ -2309,7 +2309,7 @@ function prepareMemoryUpdate(
   if (
     typeof action !== "string" ||
     action !== explicitIntent ||
-    !VALID_MEMORY_ACTIONS.has(action as ExplicitMemoryIntent)
+    !VALID_MEMORY_ACTIONS.has(action as "save" | "update" | "delete")
   ) {
     return null;
   }
