@@ -3824,7 +3824,14 @@ async function handleNYXRequest(
     return new Response(
       JSON.stringify({
         success: true,
-        data: responseData
+        data: responseData,
+        ...responseData,
+        researchRequested: responseData.research.requested,
+        researchAvailable: responseData.research.available,
+        researchVerified: responseData.research.verified,
+        memoryAvailable: memory.settings.enabled,
+        memorySaved: responseData.memory.success,
+        core: "NYX CORE"
       }),
       {
         status: 200,
