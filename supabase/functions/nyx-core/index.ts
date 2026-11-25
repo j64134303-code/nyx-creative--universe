@@ -4124,6 +4124,18 @@ async function handleNYXRequest(
       }
     };
 
+    const completedHandoffs = collaborationContributions.filter(
+      item => item.studioId !== orchestration.leadStudio && item.status === "completed"
+    );
+
+    if (completedHandoffs.length > 0) {
+      responseData.response += "\\n\\n---\\n**NYX studio collaboration**";
+      for (const handoff of completedHandoffs) {
+        responseData.response += `\\n\\n**${handoff.studioName} contribution**\\n${handoff.output.slice(0, 2200)}`;
+      }
+      responseData.response += "\\n\\nThese are AI-generated studio contributions saved to your project for review. Any external media creation or publishing still requires its connected production service.";
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
