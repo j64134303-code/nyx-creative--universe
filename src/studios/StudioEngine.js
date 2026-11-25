@@ -82,7 +82,7 @@ STUDIO RULES:
 
   const safeHistory = Array.isArray(history)
     ? history
-        .slice(-20)
+        .slice(-12)
         .map(item => ({
           role: item.role,
           content: String(item.content || item.text || "")
