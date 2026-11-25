@@ -3771,6 +3771,85 @@ function buildNYXResponseData(
 
   return responseData as unknown as NYXResponse;
 }
+/* -------------------------
+   PERSIST STUDIO TASK PLAN
+   This records real work assignments without
+   falsely marking them as executed.
+------------------------- */
+
+async function persistStudioTaskPlan(
+  client: ReturnType<typeof createUserSupabaseClient>,
+  context: RequestContext,
+  orchestration: Orchestration
+): Promise<Array<{
+  id: string;
+  studioId: string;
+  status: string;
+  sequence: number;
+}>> {
+  if (!context.projectId) return [];
+
+  const created: Array<{
+    id: string;
+    studioId: string;
+    status: string;
+    sequence: number;
+  }> = [];
+
+  let previousTaskId: string | null = null;
+
+  for (const [sequence, studioId] of orchestration.selectedStudios.entries()) {
+    const studio = getStudio(studioId);
+    if (!studio) continue;
+
+    const responsibilities = orchestration.responsibilities[studioId] ?? [];
+    const instructions = responsibilities.length
+      ? responsibilities.join("\\n")
+      : `Contribute specialist work to the project request: ${context.message}`;
+
+    const { data, error } = await client
+      .from("nyx_studio_tasks")
+      .insert({
+        project_id: context.projectId,
+        user_id: context.user.id,
+        studio_id: studioId,
+        assigned_by_studio_id: orchestration.leadStudio,
+        task_type: studioId === orchestration.leadStudio
+          ? "lead_studio_work"
+          : "studio_handoff",
+        title: `${studio.name}: ${context.message.slice(0, 120)}`,
+        instructions,
+        status: "planned",
+        sequence_no: sequence,
+        depends_on: previousTaskId ? [previousTaskId] : [],
+        input_context: {
+          creatorRequest: context.message,
+          leadStudio: orchestration.leadStudio,
+          selectionMode: orchestration.mode,
+          reason: orchestration.reasons[studioId] ?? "Creator selection"
+        }
+      })
+      .select("id, studio_id, status, sequence_no")
+      .single();
+
+    if (error || !data) {
+      throw new Error(
+        "NYX could not save the studio collaboration plan. Apply the latest NYX database migration and try again."
+      );
+    }
+
+    created.push({
+      id: data.id,
+      studioId: data.studio_id,
+      status: data.status,
+      sequence: data.sequence_no
+    });
+    previousTaskId = data.id;
+  }
+
+  return created;
+}
+
 // ============================================
 // PART 6 — NYX CORE REQUEST HANDLER
 // ============================================
@@ -3809,7 +3888,15 @@ async function handleNYXRequest(
       research
     );
 
-    // 6. Check whether the user explicitly requested a memory action
+    // 6. Persist a truthful, ordered collaboration plan. These tasks
+    // remain "planned" until a studio execution adapter actually runs them.
+    const taskPlan = await persistStudioTaskPlan(
+      client,
+      context,
+      orchestration
+    );
+
+    // 7. Check whether the user explicitly requested a memory action
     const memoryIntent = detectExplicitMemoryIntent(
       context.message
     );
@@ -3844,15 +3931,23 @@ async function handleNYXRequest(
     }
 
     // 8. Prepare the final response
-    const responseData = buildNYXResponseData(
-      context,
-      orchestration,
-      generated.parsed,
-      research,
-      memoryResult,
-      generated.provider,
-      generated.model
-    );
+    const responseData = {
+      ...buildNYXResponseData(
+        context,
+        orchestration,
+        generated.parsed,
+        research,
+        memoryResult,
+        generated.provider,
+        generated.model
+      ),
+      taskPlan,
+      collaboration: {
+        persisted: taskPlan.length > 0,
+        status: taskPlan.length > 0 ? "planned" : "not_persisted",
+        note: "Studio assignments are recorded. Actual specialist execution and output handoffs require connected studio execution services."
+      }
+    };
 
     return new Response(
       JSON.stringify({
