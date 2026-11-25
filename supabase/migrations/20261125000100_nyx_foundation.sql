@@ -14,7 +14,7 @@ begin
 end;
 $$;
 
-create table if not exists public.projects (
+create table if not exists public.nyx_projects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null default 'Untitled project',
@@ -27,11 +27,11 @@ create table if not exists public.projects (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
-create index if not exists projects_user_updated_idx
-  on public.projects (user_id, updated_at desc);
+create index if not exists nyx_projects_user_updated_idx
+  on public.nyx_projects (user_id, updated_at desc);
 
-create unique index if not exists projects_id_user_unique
-  on public.projects (id, user_id);
+create unique index if not exists nyx_projects_id_user_unique
+  on public.nyx_projects (id, user_id);
 
 create table if not exists public.nyx_memory_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -45,14 +45,14 @@ create table if not exists public.nyx_memory_settings (
 create table if not exists public.nyx_shared_memory (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid references public.projects(id) on delete cascade,
+  project_id uuid references public.nyx_projects(id) on delete cascade,
   category text not null default 'general',
   content text not null check (char_length(content) between 3 and 3000),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint nyx_memory_project_owner_fk
     foreign key (project_id, user_id)
-    references public.projects(id, user_id)
+    references public.nyx_projects(id, user_id)
     on delete cascade
 );
 
@@ -65,14 +65,14 @@ create index if not exists nyx_memory_project_updated_idx
 create table if not exists public.nyx_conversations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  project_id uuid references public.projects(id) on delete cascade,
+  project_id uuid references public.nyx_projects(id) on delete cascade,
   studio_id text not null,
   title text not null default 'New conversation',
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint nyx_conversation_project_owner_fk
     foreign key (project_id, user_id)
-    references public.projects(id, user_id)
+    references public.nyx_projects(id, user_id)
     on delete cascade
 );
 
@@ -98,7 +98,7 @@ create index if not exists nyx_messages_user_created_idx
 
 create table if not exists public.nyx_studio_tasks (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null references public.nyx_projects(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   parent_task_id uuid references public.nyx_studio_tasks(id) on delete set null,
   studio_id text not null,
@@ -119,7 +119,7 @@ create table if not exists public.nyx_studio_tasks (
   updated_at timestamptz not null default timezone('utc', now()),
   constraint nyx_task_project_owner_fk
     foreign key (project_id, user_id)
-    references public.projects(id, user_id)
+    references public.nyx_projects(id, user_id)
     on delete cascade
 );
 
@@ -130,7 +130,7 @@ create index if not exists nyx_tasks_user_status_idx
 
 create table if not exists public.nyx_project_assets (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null references public.nyx_projects(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   studio_id text,
   asset_type text not null,
@@ -144,7 +144,7 @@ create table if not exists public.nyx_project_assets (
   updated_at timestamptz not null default timezone('utc', now()),
   constraint nyx_asset_project_owner_fk
     foreign key (project_id, user_id)
-    references public.projects(id, user_id)
+    references public.nyx_projects(id, user_id)
     on delete cascade
 );
 
@@ -153,7 +153,7 @@ create index if not exists nyx_assets_project_created_idx
 
 create table if not exists public.nyx_research_sources (
   id uuid primary key default gen_random_uuid(),
-  project_id uuid not null references public.projects(id) on delete cascade,
+  project_id uuid not null references public.nyx_projects(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   studio_id text,
   title text not null,
@@ -170,7 +170,7 @@ create table if not exists public.nyx_research_sources (
   created_at timestamptz not null default timezone('utc', now()),
   constraint nyx_research_project_owner_fk
     foreign key (project_id, user_id)
-    references public.projects(id, user_id)
+    references public.nyx_projects(id, user_id)
     on delete cascade
 );
 
@@ -181,7 +181,7 @@ create unique index if not exists nyx_research_project_url_unique
 
 -- Composite uniqueness is required by the owner-preserving foreign keys above.
 -- Enable RLS on every user-owned table.
-alter table public.projects enable row level security;
+alter table public.nyx_projects enable row level security;
 alter table public.nyx_memory_settings enable row level security;
 alter table public.nyx_shared_memory enable row level security;
 alter table public.nyx_conversations enable row level security;
@@ -191,8 +191,8 @@ alter table public.nyx_project_assets enable row level security;
 alter table public.nyx_research_sources enable row level security;
 
 -- Policies are dropped and recreated so this migration can be safely re-applied.
-drop policy if exists "NYX users manage their projects" on public.projects;
-create policy "NYX users manage their projects" on public.projects
+drop policy if exists "NYX users manage their projects" on public.nyx_projects;
+create policy "NYX users manage their projects" on public.nyx_projects
   for all to authenticated using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
@@ -209,7 +209,7 @@ create policy "NYX users manage their memory" on public.nyx_shared_memory
     and (
       project_id is null
       or exists (
-        select 1 from public.projects p
+        select 1 from public.nyx_projects p
         where p.id = project_id and p.user_id = auth.uid()
       )
     )
@@ -223,7 +223,7 @@ create policy "NYX users manage their conversations" on public.nyx_conversations
     and (
       project_id is null
       or exists (
-        select 1 from public.projects p
+        select 1 from public.nyx_projects p
         where p.id = project_id and p.user_id = auth.uid()
       )
     )
@@ -246,7 +246,7 @@ create policy "NYX users manage their studio tasks" on public.nyx_studio_tasks
   with check (
     auth.uid() = user_id
     and exists (
-      select 1 from public.projects p
+      select 1 from public.nyx_projects p
       where p.id = project_id and p.user_id = auth.uid()
     )
   );
@@ -257,7 +257,7 @@ create policy "NYX users manage their project assets" on public.nyx_project_asse
   with check (
     auth.uid() = user_id
     and exists (
-      select 1 from public.projects p
+      select 1 from public.nyx_projects p
       where p.id = project_id and p.user_id = auth.uid()
     )
   );
@@ -268,14 +268,14 @@ create policy "NYX users manage their research sources" on public.nyx_research_s
   with check (
     auth.uid() = user_id
     and exists (
-      select 1 from public.projects p
+      select 1 from public.nyx_projects p
       where p.id = project_id and p.user_id = auth.uid()
     )
   );
 
 -- Keep updated_at accurate for mutable records.
-drop trigger if exists nyx_projects_updated_at on public.projects;
-create trigger nyx_projects_updated_at before update on public.projects
+drop trigger if exists nyx_projects_updated_at on public.nyx_projects;
+create trigger nyx_projects_updated_at before update on public.nyx_projects
   for each row execute function public.nyx_set_updated_at();
 
 drop trigger if exists nyx_memory_settings_updated_at on public.nyx_memory_settings;
