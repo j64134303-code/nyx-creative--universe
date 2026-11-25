@@ -1,0 +1,25 @@
+name: Check NYX CORE
+
+on:
+  push:
+    branches:
+      - nyx-core-prepared
+    paths:
+      - 'supabase/functions/nyx-core/**'
+      - '.github/workflows/nyx-core-check.yml'
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check NYX CORE
+        run: deno check supabase/functions/nyx-core/index.ts
