@@ -46,7 +46,7 @@ begin
       check (status in ('active', 'paused', 'completed', 'archived'));
   end if;
 end;
-$;
+$$;
 
 create index if not exists nyx_projects_user_updated_idx
   on public.nyx_projects (user_id, updated_at desc);
