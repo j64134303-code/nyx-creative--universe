@@ -1255,21 +1255,27 @@ function hasExactCreatorEvidence(
   return normalizedCreatorText.includes(normalizedEvidence);
 }
 
+
 function isSafeMemoryUpdate(
   update: MemoryUpdate,
-  creatorText: string,
+  currentMessage: string,
 ): boolean {
-  const text = normalizeText(creatorText);
+  const text = normalizeText(currentMessage);
   const evidence = normalizeText(update.evidence);
 
-  // The creator must explicitly request memory saving.
+  // Only the current message can authorize a memory save.
   const explicitSaveRequest =
     /\b(remember|save this|save that|keep this in memory|don't forget|do not forget|store this)\b/i
-      .test(creatorText);
+      .test(text);
 
-  if (!explicitSaveRequest) return false;
+  // Avoid interpreting a rejection as permission to save.
+  const rejectedSaveRequest =
+    /\b(don't|do not|never)\s+remember\b/i.test(text);
 
-  // Only creator-stated or creator-confirmed information is eligible.
+  if (!explicitSaveRequest || rejectedSaveRequest) {
+    return false;
+  }
+
   if (
     update.approvalStatus !== "creator-stated" &&
     update.approvalStatus !== "creator-confirmed"
@@ -1277,7 +1283,7 @@ function isSafeMemoryUpdate(
     return false;
   }
 
-  // Evidence must be an exact part of the creator's message.
+  // Evidence must come directly from the current message.
   if (
     evidence.length < 12 ||
     !text.includes(evidence)
@@ -1285,7 +1291,6 @@ function isSafeMemoryUpdate(
     return false;
   }
 
-  // Do not save empty or meaningless memories.
   if (
     !update.title.trim() ||
     Object.keys(update.content).length === 0
@@ -1295,6 +1300,7 @@ function isSafeMemoryUpdate(
 
   return true;
 }
+
 
 function normalizeMemoryUpdate(
   value: unknown,
@@ -2215,10 +2221,7 @@ async function handleChatRequest(
   // SAVE ONLY VERIFIED CREATOR-APPROVED MEMORY
   // ----------------------------------------------------
 
-  const creatorEvidence = collectCreatorEvidence(
-    message,
-    history,
-  );
+const creatorEvidence = message;
 
   let memorySavedCount = 0;
 
