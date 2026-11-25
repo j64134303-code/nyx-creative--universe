@@ -1414,6 +1414,95 @@ function buildOrchestration(
     if (studio) {
       responsibilities[studioId] = studio.responsibilities;
     }
+// ======================================================
+// PART 4: INTELLIGENT STUDIO ORCHESTRATION
+// ======================================================
+
+const MAX_SUPPORTING_STUDIOS = 4;
+
+function getStudioMatchScore(
+  message: string,
+  studio: Studio,
+  leadStudio: Studio,
+): number {
+  const normalizedMessage = ` ${normalizeKey(message)} `;
+  let score = 0;
+
+  // Explicit studio names and aliases receive the highest priority.
+  const identifiers = [
+    studio.id,
+    studio.name,
+    ...studio.aliases,
+  ];
+
+  for (const identifier of identifiers) {
+    const normalizedIdentifier = normalizeKey(identifier);
+
+    if (
+      normalizedIdentifier &&
+      normalizedMessage.includes(` ${normalizedIdentifier} `)
+    ) {
+      score += 6;
+      break;
+    }
+  }
+
+  // Direct creative-intent keyword match.
+  if (studio.keywords.test(message)) {
+    score += 3;
+  }
+
+  // Give a small relevance boost to studios connected
+  // to the selected lead studio.
+  if (leadStudio.dependencies.includes(studio.id)) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function detectSupportingStudios(
+  message: string,
+  leadStudio: Studio,
+): string[] {
+  const candidates = STUDIOS
+    .filter((studio) => studio.id !== leadStudio.id)
+    .map((studio) => ({
+      studio,
+      score: getStudioMatchScore(
+        message,
+        studio,
+        leadStudio,
+      ),
+    }))
+    .filter((item) => item.score >= 3)
+    .sort((a, b) => b.score - a.score);
+
+  // Avoid activating every studio for a simple request.
+  return candidates
+    .slice(0, MAX_SUPPORTING_STUDIOS)
+    .map((item) => item.studio.id);
+}
+
+function buildOrchestration(
+  message: string,
+  leadStudio: Studio,
+): Orchestration {
+  const supportingStudios = detectSupportingStudios(
+    message,
+    leadStudio,
+  );
+
+  const responsibilities: Record<string, string[]> = {
+    [leadStudio.id]: leadStudio.responsibilities,
+  };
+
+  for (const studioId of supportingStudios) {
+    const studio = getStudioById(studioId);
+
+    if (studio) {
+      responsibilities[studioId] = studio.responsibilities;
+    }
   }
 
   return {
@@ -1435,19 +1524,28 @@ function formatOrchestrationContext(
   return [
     `Lead studio: ${lead?.name ?? orchestration.leadStudio}`,
     supporting.length
-      ? `Relevant supporting studios: ${supporting.map((studio) => studio.name).join(", ")}`
+      ? `Supporting studios, ranked by relevance: ${supporting.map((studio) => studio.name).join(", ")}`
       : "No additional studio was identified.",
     "",
-    "Responsibilities:",
+    "COLLABORATION RESPONSIBILITIES:",
     ...Object.entries(orchestration.responsibilities)
-      .map(([id, responsibilities]) => {
+      .map(([id, studioResponsibilities]) => {
         const studio = getStudioById(id);
 
-        return `${studio?.name ?? id}: ${responsibilities.join("; ")}`;
+        return `${studio?.name ?? id}: ${studioResponsibilities.join("; ")}`;
       }),
     "",
-    "Important: This is planning and routing metadata. Do not claim that another studio or external engine actually executed work unless a real execution service was called.",
+    "COORDINATION RULES:",
+    "- The lead studio owns the main creator request.",
+    "- Supporting studios contribute only where their expertise is relevant.",
+    "- Share relevant context and deliverables between participating studios.",
+    "- Avoid duplicate work between studios.",
+    "- Keep the creator's original goal as the priority.",
+    "- This is a routing plan, not proof of actual studio execution.",
+    "- Never claim a studio completed work unless its execution service was actually called.",
   ].join("\n");
+}
+
 }// ======================================================
 // PART 5: AI OUTPUT VALIDATION
 // ======================================================
