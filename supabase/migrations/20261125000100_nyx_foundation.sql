@@ -34,7 +34,7 @@ alter table public.nyx_projects
   add column if not exists status text not null default 'active',
   add column if not exists metadata jsonb not null default '{}'::jsonb;
 
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_constraint
