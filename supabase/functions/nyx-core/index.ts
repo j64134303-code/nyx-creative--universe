@@ -3796,7 +3796,6 @@ async function persistStudioTaskPlan(
     sequence: number;
   }> = [];
 
-  let previousTaskId: string | null = null;
 
   const executionOrder = buildStudioWorkflowOrder(
     orchestration.selectedStudios,
@@ -3826,7 +3825,9 @@ async function persistStudioTaskPlan(
         instructions,
         status: "planned",
         sequence_no: sequence,
-        depends_on: previousTaskId ? [previousTaskId] : [],
+        depends_on: studioId === orchestration.leadStudio
+          ? created.filter(item => item.studioId !== orchestration.leadStudio).map(item => item.id)
+          : [],
         input_context: {
           creatorRequest: context.message,
           leadStudio: orchestration.leadStudio,
@@ -3849,7 +3850,6 @@ async function persistStudioTaskPlan(
       status: data.status,
       sequence: data.sequence_no
     });
-    previousTaskId = data.id;
   }
 
   return created;
