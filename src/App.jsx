@@ -474,6 +474,65 @@ export default function App() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
+      // Give each conversation a durable cloud project so NYX CORE can
+      // safely attach shared memory and studio task plans to it.
+      let cloudProjectId = existingConversation?.projectId || null;
+      let cloudConversationId = existingConversation?.cloudConversationId || null;
+
+      if (!cloudProjectId) {
+        const { data: project, error: projectError } = await supabase
+          .from("nyx_projects")
+          .insert({
+            user_id: sessionData.session.user.id,
+            title: getTitle(message),
+            lead_studio_id: activeStudio.id
+          })
+          .select("id")
+          .single();
+
+        if (projectError) throw projectError;
+        cloudProjectId = project.id;
+
+        setConversations((previous) => previous.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, projectId: cloudProjectId }
+            : conversation
+        ));
+      }
+
+      if (!cloudConversationId) {
+        const { data: cloudConversation, error: conversationError } = await supabase
+          .from("nyx_conversations")
+          .insert({
+            user_id: sessionData.session.user.id,
+            project_id: cloudProjectId,
+            studio_id: activeStudio.id,
+            title: getTitle(message)
+          })
+          .select("id")
+          .single();
+
+        if (conversationError) throw conversationError;
+        cloudConversationId = cloudConversation.id;
+
+        setConversations((previous) => previous.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, cloudConversationId }
+            : conversation
+        ));
+      }
+
+      const { error: userMessageError } = await supabase
+        .from("nyx_messages")
+        .insert({
+          conversation_id: cloudConversationId,
+          user_id: sessionData.session.user.id,
+          role: "user",
+          content: message
+        });
+
+      if (userMessageError) throw userMessageError;
+
       const history = previousMessages
         .filter((item) =>
           ["user", "assistant"].includes(item.role) &&
@@ -491,7 +550,9 @@ export default function App() {
         {
           body: {
             message,
+            studioId: activeStudio.id,
             studioName: activeStudio.name,
+            projectId: cloudProjectId,
             history
           },
           headers: {
@@ -510,6 +571,21 @@ export default function App() {
         throw new Error(data?.error || "NYX did not return a response.");
       }
 
+      const { error: assistantMessageError } = await supabase
+        .from("nyx_messages")
+        .insert({
+          conversation_id: cloudConversationId,
+          user_id: sessionData.session.user.id,
+          role: "assistant",
+          content: result.response,
+          metadata: {
+            provider: result.provider || null,
+            model: result.model || null,
+            productionStatus: result.productionStatus || null
+          }
+        });
+
+      if (assistantMessageError) throw assistantMessageError;
       addAssistantMessage(conversationId, result.response);
     } catch (error) {
       console.error("NYX CORE error:", error);
