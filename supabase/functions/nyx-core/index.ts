@@ -2281,7 +2281,7 @@ function formatProjectCanonForCreator(canon: ProjectCanonState): string {
   if (canon.approved && canon.draft) {
     lines.push("", "**Currently approved canon:**", JSON.stringify(canon.approved, null, 2));
   }
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 
 function formatProjectCanonContext(canon: ProjectCanonState): string {
