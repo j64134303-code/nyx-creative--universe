@@ -3279,9 +3279,9 @@ async function callNYXProvider(
       },
       body: JSON.stringify({
         model: configuration.model,
-        messages,
+        messages: compactProviderMessages(messages),
         temperature: 0.7,
-        max_tokens: 3000,
+        max_tokens: 1200,
         stream: false
       })
     }
@@ -3396,10 +3396,23 @@ function canUseFallback(
   // Provider credentials are independent: a Groq auth failure must not
   // prevent trying a configured OpenRouter fallback.
   // A malformed request (400) is unlikely to succeed unchanged elsewhere.
-  if (error.status === 400) return false;
+  if (error.status === 400 || error.status === 413 || error.status === 429) return false;
   return true;
 }
 
+const MAX_PROVIDER_INPUT_CHARS = 18_000;
+
+function compactProviderMessages(messages: NYXProviderMessage[]): NYXProviderMessage[] {
+  let remaining = MAX_PROVIDER_INPUT_CHARS;
+  const compacted = messages.map(message => ({ ...message, content: "" }));
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (remaining <= 0) break;
+    const content = messages[index].content.slice(0, remaining);
+    compacted[index].content = content;
+    remaining -= content.length;
+  }
+  return compacted.filter(message => message.content.length > 0);
+}
 async function runNYXIntelligence(
   messages: NYXProviderMessage[]
 ): Promise<NYXProviderResult> {
