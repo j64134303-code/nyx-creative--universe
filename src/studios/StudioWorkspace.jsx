@@ -1237,6 +1237,23 @@ export default function StudioWorkspace({
             <article
               className={`nyx-chat-message ${item.role}`}
               key={item.id}
+              style={item.role === "assistant" ? {
+                display: "block",
+                alignSelf: "stretch",
+                width: "100%",
+                maxWidth: 760,
+                margin: "0 auto",
+                padding: "5px 2px 18px",
+                border: "0",
+                borderRadius: 0,
+                background: "transparent",
+                boxShadow: "none",
+                color: "#eee6f7",
+                fontSize: 14,
+                lineHeight: 1.8,
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere"
+              } : undefined}
             >
               {item.content}
 
