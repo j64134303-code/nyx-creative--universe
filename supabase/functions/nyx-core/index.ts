@@ -4718,6 +4718,251 @@ async function executeStudioCollaboration(
 // PART 6 — NYX CORE REQUEST HANDLER
 // ============================================
 
+
+/* =========================================================
+   RUNWAY VIDEO PRODUCTION — AUTHENTICATED FILM TASKS
+   Paid generations require a creator-confirmed credit estimate.
+========================================================= */
+
+function runwayVideoEstimate(duration: number): number {
+  const listPrice = Math.ceil(15.7 * duration);
+  const now = new Date();
+  const promoActive =
+    now.getUTCFullYear() === 2026 &&
+    (now.getUTCMonth() < 10 ||
+      (now.getUTCMonth() === 10 && now.getUTCDate() <= 30));
+  return promoActive ? Math.ceil(listPrice * 0.8) : listPrice;
+}
+
+async function handleRunwayVideoAction(
+  request: Request,
+  body: Record<string, unknown>
+): Promise<Response> {
+  const corsHeaders = getCorsHeaders(request.headers.get("origin"));
+  try {
+    validateEnvironment();
+    if (!validateRequestOrigin(request)) {
+      throw new Error("This application origin is not allowed.");
+    }
+    const { client, user } = await authenticateRequest(request);
+    await getAuthenticatedProfile(client, user.id);
+
+    const projectId = validateProjectId(body.projectId);
+    if (!projectId || !isValidUUID(projectId)) {
+      throw new Error("Select a valid saved NYX project before creating a video.");
+    }
+    await verifyProjectOwnership(client, user.id, projectId);
+
+    if (body.studioId !== "film") {
+      throw new Error("Runway video production is currently available through Film & Video Studio.");
+    }
+
+    const action = body.action;
+    const apiKey = Deno.env.get("RUNWAYML_API_SECRET");
+    if (!apiKey) {
+      throw new Error("Runway is not configured. Add RUNWAYML_API_SECRET to Supabase Edge Function secrets.");
+    }
+    const headers = {
+      Authorization: "Bearer " + apiKey,
+      "X-Runway-Version": "2024-11-06",
+      "Content-Type": "application/json"
+    };
+
+    if (action === "video_generate") {
+      const prompt = typeof body.promptText === "string" ? body.promptText.trim() : "";
+      const duration = Number(body.duration ?? 5);
+      const ratio = body.ratio === "720:1280" ? "720:1280" : "1280:720";
+      if (!prompt || prompt.length > 1000) {
+        throw new Error("Enter a video prompt between 1 and 1,000 characters.");
+      }
+      if (!Number.isInteger(duration) || duration < 3 || duration > 30) {
+        throw new Error("Kling 4.0 duration must be between 3 and 30 seconds.");
+      }
+
+      const approvedCredits = Number(body.approvedCredits);
+      const expectedCredits = runwayVideoEstimate(duration);
+      if (body.confirmed !== true || approvedCredits !== expectedCredits) {
+        return new Response(JSON.stringify({
+          success: false,
+          requiresConfirmation: true,
+          estimatedCredits: expectedCredits,
+          duration,
+          model: "kling_4",
+          resolution: "720p",
+          message: "Review the current estimate and explicitly approve this paid generation before continuing."
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      const runwayResponse = await fetch("https://api.dev.runwayml.com/v1/text_to_video", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model: "kling_4", promptText: prompt, ratio, duration })
+      });
+      const runwayData = await runwayResponse.json().catch(() => ({}));
+      if (!runwayResponse.ok || typeof runwayData.id !== "string") {
+        console.error("Runway create task failed:", runwayResponse.status, runwayData);
+        const message = runwayResponse.status === 429
+          ? "Runway is busy or rate-limited. Please wait before trying again."
+          : runwayResponse.status === 401 || runwayResponse.status === 403
+            ? "Runway rejected the API key. Check the Supabase secret."
+            : "Runway could not start this video generation. No successful task was returned.";
+        return new Response(JSON.stringify({ success: false, error: message }), {
+          status: runwayResponse.status >= 400 && runwayResponse.status < 600 ? runwayResponse.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      const { data: savedTask, error: saveError } = await client
+        .from("nyx_studio_tasks")
+        .insert({
+          project_id: projectId,
+          user_id: user.id,
+          studio_id: "film",
+          assigned_by_studio_id: "film",
+          task_type: "runway_video_generation",
+          title: "Kling 4.0 shot — " + duration + "s",
+          instructions: prompt,
+          status: "queued",
+          sequence_no: 0,
+          input_context: {
+            provider: "runway", model: "kling_4", ratio, duration,
+            approvedCredits, runwayTaskId: runwayData.id
+          },
+          result: {
+            runwayTaskId: runwayData.id,
+            estimatedCost: runwayData.estimatedCost ?? { credits: expectedCredits },
+            status: "PENDING"
+          }
+        })
+        .select("id, project_id, title, status, created_at, result")
+        .single();
+
+      if (saveError || !savedTask) {
+        console.error("Could not save Runway task in NYX:", saveError);
+        return new Response(JSON.stringify({
+          success: false,
+          externalTaskCreated: true,
+          runwayTaskId: runwayData.id,
+          error: "Runway started the generation, but NYX could not save its tracking record. Keep this task ID for recovery."
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true, task: savedTask, runwayTaskId: runwayData.id,
+        estimatedCredits: runwayData.estimatedCost?.credits ?? expectedCredits,
+        status: "PENDING",
+        message: "Video generation started. NYX saved the task for tracking."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    if (action === "video_status") {
+      const nyxTaskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
+      if (!isValidUUID(nyxTaskId)) throw new Error("A valid NYX video task ID is required.");
+
+      const { data: savedTask, error: taskError } = await client
+        .from("nyx_studio_tasks")
+        .select("id, project_id, user_id, status, input_context, result")
+        .eq("id", nyxTaskId)
+        .eq("user_id", user.id)
+        .eq("studio_id", "film")
+        .single();
+
+      if (taskError || !savedTask || savedTask.user_id !== user.id) {
+        throw new Error("That video task was not found in your account.");
+      }
+      await verifyProjectOwnership(client, user.id, savedTask.project_id);
+
+      const runwayTaskId = savedTask.input_context?.runwayTaskId;
+      if (typeof runwayTaskId !== "string") {
+        throw new Error("This NYX task has no valid Runway task reference.");
+      }
+
+      const statusResponse = await fetch(
+        "https://api.dev.runwayml.com/v1/tasks/" + encodeURIComponent(runwayTaskId),
+        { method: "GET", headers }
+      );
+      const statusData = await statusResponse.json().catch(() => ({}));
+      if (!statusResponse.ok) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: statusResponse.status === 404
+            ? "Runway no longer has this task available."
+            : "NYX could not retrieve the latest Runway task status."
+        }), {
+          status: statusResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      const runwayStatus = String(statusData.status ?? "PENDING").toUpperCase();
+      const nyxStatus = runwayStatus === "SUCCEEDED"
+        ? "needs_review"
+        : runwayStatus === "FAILED" || runwayStatus === "CANCELLED"
+          ? "failed"
+          : "running";
+      const result = {
+        ...(savedTask.result ?? {}),
+        runwayTaskId,
+        runwayStatus,
+        output: Array.isArray(statusData.output) ? statusData.output : [],
+        failure: statusData.failure ?? null,
+        completedAt: statusData.completedAt ?? null
+      };
+
+      const { error: updateError } = await client
+        .from("nyx_studio_tasks")
+        .update({
+          status: nyxStatus, result,
+          error_message: runwayStatus === "FAILED"
+            ? String(statusData.failure ?? "Runway generation failed").slice(0, 1000)
+            : null,
+          updated_at: new Date().toISOString(),
+          ...(runwayStatus === "SUCCEEDED" || runwayStatus === "FAILED"
+            ? { completed_at: new Date().toISOString() }
+            : {})
+        })
+        .eq("id", nyxTaskId)
+        .eq("user_id", user.id);
+
+      if (updateError) console.error("NYX video task status update failed:", updateError);
+
+      return new Response(JSON.stringify({
+        success: true, taskId: nyxTaskId, runwayTaskId,
+        status: runwayStatus, nyxStatus,
+        output: result.output, failure: result.failure,
+        message: runwayStatus === "SUCCEEDED"
+          ? "Video generated. It is ready for creator review."
+          : runwayStatus === "FAILED"
+            ? "Video generation failed. Review the error before retrying."
+            : "Video is still processing. Check again in at least five seconds."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    throw new Error("Unsupported Runway video action.");
+  } catch (error) {
+    console.error("NYX Runway action failed:", error);
+    const message = getSafeErrorMessage(error);
+    return new Response(JSON.stringify({ success: false, error: message }), {
+      status: error instanceof Error && "status" in error &&
+        typeof (error as { status?: unknown }).status === "number"
+          ? (error as { status: number }).status : 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+}
+
 async function handleNYXRequest(
   request: Request,
   body: Record<string, unknown>
@@ -5159,6 +5404,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
           }
         }
       );
+    }
+
+    if (typeof body.action === "string" && body.action.startsWith("video_")) {
+      return await handleRunwayVideoAction(request, body);
     }
 
     return await handleNYXRequest(request, body);
