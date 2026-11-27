@@ -4,6 +4,7 @@ import {
   getStudioCollaborators
 } from "./StudioRegistry";
 import { listUserProjects, runStudioRequest } from "./StudioEngine";
+import { deleteProjectAsset, listProjectAssets, saveProjectAsset } from "./ProjectAssets";
 import "./studios.css";
 
 const QUICK_IDEAS = {
@@ -92,6 +93,10 @@ export default function StudioWorkspace({
     try { return localStorage.getItem("nyx-active-project-id") || ""; } catch { return ""; }
   });
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectAssets, setProjectAssets] = useState([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
+  const [assetBusy, setAssetBusy] = useState(false);
+  const [assetError, setAssetError] = useState("");
 
   const bottomRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -115,6 +120,24 @@ export default function StudioWorkspace({
       .finally(() => { if (active) setProjectsLoading(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) {
+      setProjectAssets([]);
+      setAssetError("");
+      return () => { active = false; };
+    }
+
+    setAssetsLoading(true);
+    setAssetError("");
+    listProjectAssets({ projectId })
+      .then(items => { if (active) setProjectAssets(items); })
+      .catch(err => { if (active) setAssetError(err.message || "Could not load project assets."); })
+      .finally(() => { if (active) setAssetsLoading(false); });
+
+    return () => { active = false; };
+  }, [projectId]);
 
   useEffect(() => {
     if (!studio) return;
@@ -282,6 +305,46 @@ export default function StudioWorkspace({
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleAssetUpload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !projectId || assetBusy) return;
+
+    setAssetBusy(true);
+    setAssetError("");
+    try {
+      await saveProjectAsset({
+        projectId,
+        studioId,
+        file,
+        assetType: file.type.startsWith("image/") ? "image" :
+          file.type.startsWith("audio/") ? "audio" :
+          file.type.startsWith("video/") ? "video" : "document",
+        metadata: { uploadedFrom: "studio-workspace" }
+      });
+      const refreshed = await listProjectAssets({ projectId });
+      setProjectAssets(refreshed);
+    } catch (err) {
+      setAssetError(err.message || "Could not save this asset.");
+    } finally {
+      setAssetBusy(false);
+    }
+  }
+
+  async function handleAssetDelete(asset) {
+    if (!asset || assetBusy) return;
+    setAssetBusy(true);
+    setAssetError("");
+    try {
+      await deleteProjectAsset(asset);
+      setProjectAssets(items => items.filter(item => item.id !== asset.id));
+    } catch (err) {
+      setAssetError(err.message || "Could not delete this asset.");
+    } finally {
+      setAssetBusy(false);
     }
   }
 
@@ -716,6 +779,32 @@ export default function StudioWorkspace({
                   PRODUCTION CONNECTION
                 </h3>
                 <p>{studio.production}</p>
+
+                <h3 style={{ marginTop: 14 }}>SHARED PROJECT ASSETS</h3>
+                <p style={{ fontSize: 12, opacity: 0.8 }}>
+                  Upload scripts, reference images, audio and other project files. Private to your account.
+                </p>
+                <input
+                  type="file"
+                  disabled={!projectId || assetBusy}
+                  onChange={handleAssetUpload}
+                  style={{ width: "100%", margin: "8px 0", fontSize: 12 }}
+                />
+                {!projectId && <p style={{ fontSize: 12 }}>Select a shared project to manage its assets.</p>}
+                {assetBusy && <p style={{ fontSize: 12 }}>Saving project asset...</p>}
+                {assetsLoading && <p style={{ fontSize: 12 }}>Loading project assets...</p>}
+                {assetError && <p style={{ color: "#fca5a5", fontSize: 12 }}>{assetError}</p>}
+                {projectAssets.map(asset => (
+                  <div key={asset.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7, fontSize: 12 }}>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                      {asset.file_name || "Project asset"}
+                    </span>
+                    {asset.signedUrl && (
+                      <a href={asset.signedUrl} target="_blank" rel="noreferrer" style={{ color: "#c4b5fd" }}>Open</a>
+                    )}
+                    <button type="button" disabled={assetBusy} onClick={() => handleAssetDelete(asset)} style={{ background: "transparent", border: 0, color: "#fca5a5" }}>Delete</button>
+                  </div>
+                ))}
               </div>
             </div>
           </details>
