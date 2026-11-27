@@ -4478,9 +4478,15 @@ async function executeStudioCollaboration(
           `You are the lead ${leadStudio.name} studio.`,
           "Review every completed specialist contribution below.",
           "Integrate them into one coherent, useful final response to the creator.",
-          "Do not merely append the contributions. Resolve conflicts, preserve the creator's intent, and identify assumptions or gaps.",
-          "If a specialist failed, continue with the available work and mention the gap briefly.",
-          "Return the required structured JSON exactly as specified."
+          "Do not append or reproduce specialist drafts. Produce exactly ONE final answer for the creator.",
+          "Treat approved project canon and explicit creator instructions as authoritative over every specialist suggestion.",
+          "If the creator has not established a canon for this request, choose one coherent set of names, roles, facts and story events; discard conflicting alternatives from specialist drafts.",
+          "Never present competing versions of the same character, premise, scene or deliverable in the final answer.",
+          "Do not silently change any creator-approved character name, appearance, age, role, history or other continuity detail.",
+          "Resolve disagreements by preserving creator-established facts; label genuinely unresolved questions briefly rather than inventing answers.",
+          "Use specialist outputs as internal working material only. Do not add separate studio contribution sections, raw handoff text or repeated drafts.",
+          "If a specialist failed, continue with the available work and mention the missing specialist input in one short sentence only when it materially affects the result.",
+          "Return one complete, polished, internally consistent deliverable in the required structured JSON exactly as specified."
         ].join("\n") + "\n\n" +
           "COMPLETED SPECIALIST CONTRIBUTIONS:\n" +
           successfulContributions.map(item =>
@@ -4832,9 +4838,7 @@ async function handleNYXRequest(
     };
 
     if (research.requested && research.available) {
-      responseData.response += research.saved
-        ? `\\n\\n**Research storage:** ${research.saveMessage}`
-        : `\\n\\n**Research storage:** ${research.saveMessage}`;
+      responseData.response += `\n\n**Research storage:** ${research.saveMessage}`;
     }
 
     if (canonIntent === "propose" || canonIntent === "revise") {
@@ -4851,18 +4855,8 @@ async function handleNYXRequest(
         : "\n\nThere was no saved canon draft to approve.";
     }
 
-    const completedHandoffs = collaborationContributions.filter(
-      item => item.studioId !== orchestration.leadStudio && item.status === "completed"
-    );
-
-    if (completedHandoffs.length > 0) {
-      responseData.response += "\\n\\n---\\n**NYX studio collaboration**";
-      for (const handoff of completedHandoffs) {
-        responseData.response += `\\n\\n**${handoff.studioName} contribution**\\n${handoff.output.slice(0, 2200)}`;
-      }
-      responseData.response += "\\n\\nThese are AI-generated studio contributions saved to your project for review. Any external media creation or publishing still requires its connected production service.";
-    }
-
+    // Specialist drafts remain in their task records for review.
+    // The creator-facing response is the single integrated lead-studio answer.
     return new Response(
       JSON.stringify({
         success: true,
