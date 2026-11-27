@@ -115,6 +115,7 @@ export default function StudioWorkspace({
   const [conversationType, setConversationType] = useState("conversation");
   const [conversationTitle, setConversationTitle] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [contextDraft, setContextDraft] = useState("");
   const [contextSaving, setContextSaving] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -350,6 +351,7 @@ export default function StudioWorkspace({
       setContextDraft("");
       setMessages([]);
       setMessage("");
+      setHistoryOpen(false);
     } catch (err) {
       setError(err.message || "Could not start a new workspace.");
     } finally {
@@ -370,6 +372,7 @@ export default function StudioWorkspace({
       setContextDraft(row.context?.notes || row.context?.text || "");
       setMessages(history);
       setMessage("");
+      setHistoryOpen(false);
     } catch (err) {
       setError(err.message || "Could not open this workspace.");
     } finally {
@@ -567,6 +570,21 @@ export default function StudioWorkspace({
           border-bottom: 1px solid #30213e;
         }
 
+        .nyx-history-toggle { flex-shrink:0; width:40px; height:40px; border:1px solid #49315e; border-radius:11px; background:#21172d; color:#eadcff; font-size:20px; cursor:pointer; }
+        .nyx-history-backdrop { position:fixed; inset:0; z-index:100; display:flex; background:rgba(0,0,0,.68); }
+        .nyx-history-drawer { width:min(86vw,350px); height:100%; display:flex; flex-direction:column; gap:12px; padding:18px 14px calc(18px + env(safe-area-inset-bottom)); background:#100d18; border-right:1px solid #49315e; box-shadow:18px 0 50px rgba(0,0,0,.35); }
+        .nyx-history-top { display:flex; align-items:center; justify-content:space-between; color:#fff; font-size:16px; }
+        .nyx-history-top button { border:0; background:transparent; color:#cdb8df; font-size:22px; padding:5px 9px; }
+        .nyx-history-new { width:100%; padding:12px; border:1px solid #8053b5; border-radius:12px; background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:white; font-weight:700; text-align:left; }
+        .nyx-history-task { width:100%; padding:10px 12px; border:1px solid #49315e; border-radius:12px; background:#1b1427; color:#eadcff; text-align:left; }
+        .nyx-history-search { width:100%; padding:11px 12px; border:1px solid #49315e; border-radius:11px; background:#17121f; color:white; font:inherit; font-size:12px; outline:none; }
+        .nyx-history-label { color:#a99bb7; font-size:10px; letter-spacing:1px; font-weight:800; }
+        .nyx-history-items { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+        .nyx-history-item { width:100%; padding:11px 12px; border:1px solid transparent; border-radius:10px; background:transparent; color:#d9cbe7; text-align:left; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .nyx-history-item.active { background:#2a1d39; border-color:#65458a; color:white; }
+        .nyx-history-options { border-top:1px solid #30213e; padding-top:10px; color:#d8b4fe; font-size:12px; }
+        .nyx-history-options textarea { width:100%; min-height:76px; margin-top:8px; padding:9px; border:1px solid #49315e; border-radius:9px; background:#17121f; color:white; font:inherit; font-size:11px; }
+        .nyx-history-options button { margin:7px 7px 0 0; padding:8px 10px; border:1px solid #68429a; border-radius:9px; background:#34204b; color:white; }
         .nyx-chat-back {
           background: #21172d;
           color: #e9d5ff;
@@ -999,6 +1017,7 @@ export default function StudioWorkspace({
       `}</style>
 
       <header className="nyx-chat-header">
+        <button type="button" className="nyx-history-toggle" onClick={() => setHistoryOpen(true)} aria-label="Open conversation history">☰</button>
         <button
           type="button"
           className="nyx-chat-back"
@@ -1043,49 +1062,36 @@ export default function StudioWorkspace({
         </label>
       </header>
 
-      <div className="nyx-chat-content">
-        <section className="nyx-thread-bar">
-          <div className="nyx-thread-actions">
-            <button type="button" className="primary" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>＋ New Task</button>
-            <button type="button" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>✎ New Conversation</button>
-          </div>
-          <input
-            className="nyx-thread-search"
-            value={conversationSearch}
-            onChange={event => setConversationSearch(event.target.value)}
-            placeholder="Find a task or conversation..."
-            aria-label="Search studio conversations"
-          />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 2px 7px" }}>
-            <span style={{ color: "#bca8ce", fontSize: 11, fontWeight: 700 }}>PAST CONVERSATIONS</span>
-            <span style={{ color: "#81758d", fontSize: 10 }}>{conversations.length} saved</span>
-          </div>
-          <div className="nyx-thread-list">
-            {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
-            {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
-              <button
-                type="button"
-                key={item.id}
-                className={`nyx-thread-chip ${item.id === activeConversationId ? "active" : ""}`}
-                onClick={() => openThread(item)}
-                title={item.title}
-              >
-                <span style={{ marginRight: 9, color: "#c4a1f1" }}>{item.conversation_type === "task" ? "✦" : "☁"}</span>
-                {item.title || "Untitled work"}
-              </button>
-            ))}
-            {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your conversations will appear here.</span>}
-          </div>
-          {activeConversationId && (
-            <details className="nyx-thread-context">
-              <summary>✧ {conversationType === "task" ? "Task" : "Conversation"} details · {conversationTitle || "Untitled"}</summary>
-              <button type="button" onClick={handleRenameThread} style={{ marginTop: 8, border: "1px solid #68429a", borderRadius: 9, background: "#34204b", color: "white", padding: "7px 10px" }}>Rename workspace</button>
-              <textarea value={contextDraft} onChange={event => setContextDraft(event.target.value)} placeholder="Add or edit instructions, background, context and project notes for this workspace..." />
-              <button type="button" onClick={handleSaveContext} disabled={contextSaving}>{contextSaving ? "Saving..." : "Save context"}</button>
-            </details>
-          )}
-        </section>
+      {historyOpen && (
+        <div className="nyx-history-backdrop" onClick={() => setHistoryOpen(false)}>
+          <aside className="nyx-history-drawer" onClick={event => event.stopPropagation()}>
+            <div className="nyx-history-top"><strong>{studio.name}</strong><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></div>
+            <button type="button" className="nyx-history-new" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>＋ New chat</button>
+            <button type="button" className="nyx-history-task" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>✦ New task</button>
+            <input className="nyx-history-search" value={conversationSearch} onChange={event => setConversationSearch(event.target.value)} placeholder="Search conversations..." aria-label="Search conversations" />
+            <div className="nyx-history-label">PAST CONVERSATIONS · {conversations.length}</div>
+            <div className="nyx-history-items">
+              {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
+              {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
+                <button type="button" key={item.id} className={`nyx-history-item ${item.id === activeConversationId ? "active" : ""}`} onClick={() => openThread(item)} title={item.title}>
+                  {item.conversation_type === "task" ? "✦ " : "◌ "}{item.title || "Untitled conversation"}
+                </button>
+              ))}
+              {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your conversations will appear here.</span>}
+            </div>
+            {activeConversationId && (
+              <details className="nyx-history-options">
+                <summary>⋯ Conversation options</summary>
+                <button type="button" onClick={handleRenameThread}>Rename chat</button>
+                <textarea value={contextDraft} onChange={event => setContextDraft(event.target.value)} placeholder="Conversation context and project notes..." />
+                <button type="button" onClick={handleSaveContext} disabled={contextSaving}>{contextSaving ? "Saving..." : "Save context"}</button>
+              </details>
+            )}
+          </aside>
+        </div>
+      )}
 
+      <div className="nyx-chat-content">
         <section className="nyx-chat-tools">
           <details>
             <summary>✦ Studio workspace & tools</summary>
