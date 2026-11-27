@@ -4762,6 +4762,21 @@ async function handleRunwayVideoAction(
     if (!apiKey) {
       throw new Error("Runway is not configured. Add RUNWAYML_API_SECRET to Supabase Edge Function secrets.");
     }
+    if (action === "video_check") {
+      return new Response(JSON.stringify({
+        success: true,
+        configured: true,
+        provider: "Runway",
+        secretPresent: true,
+        credentialVerified: false,
+        generationTested: false,
+        message: "NYX is authenticated and the Runway secret is present. The API key itself has not been tested; that requires a non-billable provider validation endpoint or an approved generation."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     const headers = {
       Authorization: "Bearer " + apiKey,
       "X-Runway-Version": "2024-11-06",
