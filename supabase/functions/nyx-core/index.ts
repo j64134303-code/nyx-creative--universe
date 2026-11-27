@@ -2270,16 +2270,73 @@ function formatProjectCanonForCreator(canon: ProjectCanonState): string {
     return "No saved draft or approved canon was found for this project. Nothing was changed.";
   }
 
-  const lines = [
-    `**${String(selected.projectTitle ?? "Untitled project")} — shared project canon**`,
-    `Status: ${canon.approved ? (canon.draft ? "Approved canon with a pending revision draft" : "Approved and active") : "Saved draft — not approved"}`,
-    `Version: ${canon.version}`,
+  const value = (key: string): string => {
+    const item = selected[key];
+    return typeof item === "string" && item.trim() ? item.trim() : "Not specified";
+  };
+  const list = (key: string): unknown[] =>
+    Array.isArray(selected[key]) ? selected[key] as unknown[] : [];
+  const lines: string[] = [
+    "THE LAST KINGDOM",
+    "SHARED PROJECT CANON",
     "",
-    canon.draft ? "**Saved draft (not approved):**" : "**Approved canon:**",
-    JSON.stringify(selected, null, 2)
+    "Status: " + (canon.approved ? (canon.draft ? "Approved canon with a pending draft" : "Approved and active") : "Saved draft — NOT APPROVED"),
+    "Version: " + canon.version,
+    "",
+    "PROJECT OVERVIEW",
+    "Era: " + value("era"),
+    "Genre: " + value("genre"),
+    "Format: " + value("format"),
+    "Premise: " + value("premise"),
+    "Setting: " + value("setting"),
+    "Tone and style: " + value("toneAndStyle"),
+    "",
+    "STORYLINE",
+    value("storyline"),
+    "",
+    "WORLD RULES"
   ];
+
+  for (const item of list("worldRules")) {
+    if (typeof item === "string") lines.push("• " + item);
+  }
+
+  lines.push("", "FIVE MAIN CHARACTERS");
+  for (const item of list("mainCharacters")) {
+    if (!isPlainObject(item)) continue;
+    lines.push(
+      "",
+      String(item.name ?? "Unnamed character"),
+      "Role: " + String(item.role ?? "Not specified"),
+      "Description: " + String(item.description ?? "Not specified")
+    );
+  }
+
+  lines.push("", "CREATOR CONSTRAINTS");
+  for (const item of list("creatorConstraints")) {
+    if (typeof item === "string") lines.push("• " + item);
+  }
+
+  lines.push("", "OPEN QUESTIONS");
+  for (const item of list("openQuestions")) {
+    if (typeof item === "string") lines.push("• " + item);
+  }
+
+  lines.push("", "ITEMS REQUIRING CREATOR APPROVAL");
+  for (const item of list("itemsRequiringApproval")) {
+    if (typeof item === "string") lines.push("• " + item);
+  }
+  if (!list("itemsRequiringApproval").length) lines.push("None listed.");
+
+  lines.push(
+    "",
+    "CREATOR CONTROL",
+    "This retrieval did not create, revise, save, or approve anything.",
+    "The draft remains unapproved."
+  );
+
   if (canon.approved && canon.draft) {
-    lines.push("", "**Currently approved canon:**", JSON.stringify(canon.approved, null, 2));
+    lines.push("", "CURRENTLY APPROVED CANON", JSON.stringify(canon.approved, null, 2));
   }
   return lines.join("\n");
 }
