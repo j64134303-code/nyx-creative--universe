@@ -2187,9 +2187,18 @@ function validateProjectCanon(value: unknown): Record<string, unknown> | null {
 function detectProjectCanonIntent(message: string): ProjectCanonIntent {
   const text = normalizeStudioKeywordText(message);
   if (!/\bcanon\b/.test(text)) return "none";
-  if (/\b(approve|accept|finalize|lock)\b/.test(text)) return "approve";
-  if (/\b(revise|update|change|edit|correct|rework|replace)\b/.test(text)) return "revise";
-  if (/\b(establish|create|define|draft|build|set|show|confirm|review)\b/.test(text)) return "propose";
+
+  // A creator may request a draft and explicitly say not to approve it.
+  // Draft/revision intent must take priority over approval words in that sentence.
+  const revisionIntent = /\b(revise|update|change|edit|correct|rework|replace)\b/.test(text);
+  const creationIntent = /\b(establish|create|define|draft|build|set)\b/.test(text);
+  const reviewIntent = /\b(show|confirm|review)\b/.test(text);
+  const approvalIntent = /\b(approve|accept|finalize|lock)\b/.test(text);
+
+  if (revisionIntent) return "revise";
+  if (creationIntent) return "propose";
+  if (approvalIntent) return "approve";
+  if (reviewIntent) return "propose";
   return "none";
 }
 
