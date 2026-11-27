@@ -234,7 +234,12 @@ export default function StudioWorkspace({
         if (available.length > 0) {
           const selected = available[0];
           setActiveConversationId(selected.id);
-          setProjectId(selected.project_id || "");
+          setProjectId(selected.project_id || (() => {
+            // Keep the creator's global shared-project selection when opening
+            // an older conversation that was not previously linked to a project.
+            try { return localStorage.getItem("nyx-active-project-id") || ""; }
+            catch { return ""; }
+          })());
           setConversationType(selected.conversation_type || "conversation");
           setConversationTitle(selected.title || "");
           setContextDraft(selected.context?.notes || selected.context?.text || "");
