@@ -114,6 +114,7 @@ export default function StudioWorkspace({
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [conversationType, setConversationType] = useState("conversation");
   const [conversationTitle, setConversationTitle] = useState("");
+  const [conversationSearch, setConversationSearch] = useState("");
   const [contextDraft, setContextDraft] = useState("");
   const [contextSaving, setContextSaving] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -634,6 +635,19 @@ export default function StudioWorkspace({
           border-color: #a78bfa;
           color: white;
         }
+        .nyx-thread-search {
+          width: 100%;
+          margin: 0 0 8px;
+          padding: 8px 11px;
+          border: 1px solid #382849;
+          border-radius: 11px;
+          background: #17121f;
+          color: #f5f0ff;
+          font: inherit;
+          font-size: 11px;
+          outline: none;
+        }
+        .nyx-thread-search::placeholder { color: #91869e; }
         .nyx-thread-list {
           display: flex;
           gap: 7px;
@@ -1024,9 +1038,16 @@ export default function StudioWorkspace({
             <button type="button" className="primary" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>＋ New Task</button>
             <button type="button" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>✎ New Conversation</button>
           </div>
+          <input
+            className="nyx-thread-search"
+            value={conversationSearch}
+            onChange={event => setConversationSearch(event.target.value)}
+            placeholder="Find a task or conversation..."
+            aria-label="Search studio conversations"
+          />
           <div className="nyx-thread-list">
             {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
-            {conversations.map(item => (
+            {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
               <button
                 type="button"
                 key={item.id}
