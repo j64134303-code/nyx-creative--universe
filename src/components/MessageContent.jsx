@@ -20,7 +20,7 @@ function normalizeMessageMarkdown(value) {
     .replace(/&gt;/gi, ">")
     .replace(/&amp;/gi, "&")
     // Convert serialized backslash-n sequences to actual line breaks.
-    .replace(/\\r?\\n/g, "\n")
+.replace(/\\n/g, "\n")
     .trim();
 }
 
