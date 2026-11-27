@@ -5,6 +5,22 @@ import {
   getStudioCollaborators
 } from "./StudioRegistry";
 
+export async function listUserProjects() {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error("NYX could not verify your session. Please try again.");
+  if (!sessionData?.session?.user) throw new Error("Please sign in to select a shared project.");
+
+  const { data, error } = await supabase
+    .from("nyx_projects")
+    .select("id, title, created_at")
+    .eq("user_id", sessionData.session.user.id)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw new Error("NYX could not load your saved projects.");
+  return Array.isArray(data) ? data : [];
+}
+
 export function getStudioWorkflow(studioId) {
   const studio = getStudio(studioId);
 
