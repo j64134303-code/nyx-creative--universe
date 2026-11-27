@@ -3281,7 +3281,7 @@ async function callNYXProvider(
         model: configuration.model,
         messages: compactProviderMessages(messages),
         temperature: 0.7,
-        max_tokens: 1200,
+        max_tokens: 1800,
         stream: false
       })
     }
@@ -3902,6 +3902,49 @@ function getProductionStatus(
    12. VALIDATE AI OUTPUT
 ------------------------- */
 
+function formatNestedJSONResponse(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+
+  let parsed: unknown;
+  try { parsed = JSON.parse(trimmed); } catch { return value; }
+
+  const label = (key: string) => key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, character => character.toUpperCase());
+
+  const render = (item: unknown, depth = 0): string => {
+    if (item === null || item === undefined) return "";
+    if (typeof item === "string") return item;
+    if (typeof item === "number" || typeof item === "boolean") return String(item);
+    if (Array.isArray(item)) {
+      return item.map((entry, index) => {
+        if (isPlainObject(entry)) {
+          const title = getSafeText(entry.title || entry.name, "", 200);
+          const heading = title ? `**${title}**` : `**${label("Item")} ${index + 1}**`;
+          const details = Object.entries(entry)
+            .filter(([key]) => key !== "title" && key !== "name")
+            .map(([key, nested]) => `**${label(key)}:** ${render(nested, depth + 1)}`)
+            .filter(Boolean).join("\n\n");
+          return `${heading}${details ? `\n\n${details}` : ""}`;
+        }
+        return `- ${render(entry, depth + 1)}`;
+      }).filter(Boolean).join("\n\n");
+    }
+    if (isPlainObject(item)) {
+      return Object.entries(item).map(([key, nested]) => {
+        const heading = label(key);
+        if (Array.isArray(nested)) return `### ${heading}\n\n${render(nested, depth + 1)}`;
+        if (isPlainObject(nested)) return `### ${heading}\n\n${render(nested, depth + 1)}`;
+        return `**${heading}:** ${render(nested, depth + 1)}`;
+      }).filter(Boolean).join("\n\n");
+    }
+    return "";
+  };
+
+  return render(parsed).trim() || value;
+}
 function validateNYXStructuredOutput(
   value: unknown,
   fallbackResponse: string
@@ -3912,11 +3955,11 @@ function validateNYXStructuredOutput(
     );
   }
 
-  const response = getSafeText(
+  const response = formatNestedJSONResponse(getSafeText(
     value.response,
     fallbackResponse,
     12000
-  );
+  ));
 
   const summary = getSafeText(
     value.summary,
@@ -4009,6 +4052,9 @@ function buildStructuredOutputInstructions(
     "}",
     "",
     "DELIVERABLE RULES",
+    "- The response field MUST contain natural, creator-facing prose with Markdown headings, lists or tables where useful.",
+    "- NEVER put a JSON object, JSON array, serialized data structure or code-like payload inside the response string.",
+    "- Do not return custom keys such as shortFilmIdeas inside the response; explain each item in readable prose.",
     "- Each deliverable should describe a real proposed or prepared output.",
     "- Never claim an output has been generated when it has only been planned.",
     "- Include the responsible studio when relevant.",
