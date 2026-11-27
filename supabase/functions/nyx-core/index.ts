@@ -28,7 +28,7 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_URL =
   "https://openrouter.ai/api/v1/chat/completions";
 
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_MESSAGE_LENGTH = 12_000;
@@ -1358,6 +1358,20 @@ function detectSupportingStudios(
   message: string,
   leadStudioId: string
 ): string[] {
+  const normalizedMessage = normalizeStudioKeywordText(message);
+  const explicitlyNamed = STUDIOS
+    .filter(studio => studio.id !== leadStudioId)
+    .filter(studio => {
+      const normalizedName = normalizeStudioKeywordText(studio.name);
+      return normalizedName.length > 0 &&
+        normalizedMessage.includes(normalizedName);
+    })
+    .map(studio => studio.id);
+
+  // Explicitly named collaborators take priority over keyword scoring.
+  // Keep the team to the two specialists most directly requested.
+  if (explicitlyNamed.length > 0) return explicitlyNamed.slice(0, 2);
+
   const scored: Array<{
     studioId: string;
     score: number;
@@ -4206,14 +4220,27 @@ async function persistStudioTaskPlan(
   status: string;
   sequence: number;
 }>> {
-  if (!context.projectId) return [];
-
   const created: Array<{
     id: string;
     studioId: string;
     status: string;
     sequence: number;
   }> = [];
+
+  // Collaboration still executes without a selected project. These
+  // temporary task IDs are in-memory only and are never persisted.
+  if (!context.projectId) {
+    const executionOrder = buildStudioWorkflowOrder(
+      orchestration.selectedStudios,
+      orchestration.leadStudio
+    );
+    return executionOrder.map((studioId, sequence) => ({
+      id: `ephemeral:${studioId}:${sequence}`,
+      studioId,
+      status: "planned",
+      sequence
+    }));
+  }
 
 
   const executionOrder = buildStudioWorkflowOrder(
@@ -4319,20 +4346,22 @@ async function executeStudioCollaboration(
         output: "Unknown studio."
       };
 
-      const { error: startError } = await client
-        .from("nyx_studio_tasks")
-        .update({ status: "running", started_at: new Date().toISOString() })
-        .eq("id", task.id)
-        .eq("user_id", context.user.id);
+      if (context.projectId) {
+        const { error: startError } = await client
+          .from("nyx_studio_tasks")
+          .update({ status: "running", started_at: new Date().toISOString() })
+          .eq("id", task.id)
+          .eq("user_id", context.user.id);
 
-      if (startError) {
-        return {
-          taskId: task.id,
-          studioId: studio.id,
-          studioName: studio.name,
-          status: "failed",
-          output: "NYX could not start this studio handoff."
-        };
+        if (startError) {
+          return {
+            taskId: task.id,
+            studioId: studio.id,
+            studioName: studio.name,
+            status: "failed",
+            output: "NYX could not start this studio handoff."
+          };
+        }
       }
 
       try {
@@ -4385,23 +4414,25 @@ async function executeStudioCollaboration(
         const output = result.content.trim();
         if (!output) throw new Error("The specialist returned an empty contribution.");
 
-        const { error: saveError } = await client
-          .from("nyx_studio_tasks")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            result: {
-              output,
-              provider: result.provider,
-              model: result.model,
-              reviewRequired: true,
-              outputType: "specialist_contribution"
-            }
-          })
-          .eq("id", task.id)
-          .eq("user_id", context.user.id);
+        if (context.projectId) {
+          const { error: saveError } = await client
+            .from("nyx_studio_tasks")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              result: {
+                output,
+                provider: result.provider,
+                model: result.model,
+                reviewRequired: true,
+                outputType: "specialist_contribution"
+              }
+            })
+            .eq("id", task.id)
+            .eq("user_id", context.user.id);
 
-        if (saveError) throw new Error("Could not persist the specialist output.");
+          if (saveError) throw new Error("Could not persist the specialist output.");
+        }
 
         return {
           taskId: task.id,
@@ -4415,15 +4446,17 @@ async function executeStudioCollaboration(
           ? error.message.slice(0, 500)
           : "Specialist execution failed.";
 
-        await client
-          .from("nyx_studio_tasks")
-          .update({
-            status: "failed",
-            error_message: message,
-            completed_at: new Date().toISOString()
-          })
-          .eq("id", task.id)
-          .eq("user_id", context.user.id);
+        if (context.projectId) {
+          await client
+            .from("nyx_studio_tasks")
+            .update({
+              status: "failed",
+              error_message: message,
+              completed_at: new Date().toISOString()
+            })
+            .eq("id", task.id)
+            .eq("user_id", context.user.id);
+        }
 
         return {
           taskId: task.id,
@@ -4451,14 +4484,16 @@ async function executeStudioCollaboration(
     const leadStudio = getStudio(orchestration.leadStudio);
 
     if (leadStudio) {
-      const { error: startError } = await client
-        .from("nyx_studio_tasks")
-        .update({ status: "running", started_at: new Date().toISOString() })
-        .eq("id", leadTask.id)
-        .eq("user_id", context.user.id);
+      if (context.projectId) {
+        const { error: startError } = await client
+          .from("nyx_studio_tasks")
+          .update({ status: "running", started_at: new Date().toISOString() })
+          .eq("id", leadTask.id)
+          .eq("user_id", context.user.id);
 
-      if (startError) {
-        throw new Error("NYX could not start the lead studio integration.");
+        if (startError) {
+          throw new Error("NYX could not start the lead studio integration.");
+        }
       }
 
       try {
@@ -4507,23 +4542,25 @@ async function executeStudioCollaboration(
           throw new Error("The lead studio returned an empty integrated response.");
         }
 
-        const { error: saveError } = await client
-          .from("nyx_studio_tasks")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            result: {
-              output: integratedOutput,
-              provider: integration.provider,
-              model: integration.model,
-              reviewRequired: true,
-              outputType: "integrated_lead_studio_response"
-            }
-          })
-          .eq("id", leadTask.id)
-          .eq("user_id", context.user.id);
+        if (context.projectId) {
+          const { error: saveError } = await client
+            .from("nyx_studio_tasks")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              result: {
+                output: integratedOutput,
+                provider: integration.provider,
+                model: integration.model,
+                reviewRequired: true,
+                outputType: "integrated_lead_studio_response"
+              }
+            })
+            .eq("id", leadTask.id)
+            .eq("user_id", context.user.id);
 
-        if (saveError) throw new Error("NYX could not save the integrated lead studio output.");
+          if (saveError) throw new Error("NYX could not save the integrated lead studio output.");
+        }
 
         contributions.push({
           taskId: leadTask.id,
@@ -4537,15 +4574,17 @@ async function executeStudioCollaboration(
           ? error.message.slice(0, 500)
           : "Lead studio integration failed.";
 
-        await client
-          .from("nyx_studio_tasks")
-          .update({
-            status: "failed",
-            error_message: message,
-            completed_at: new Date().toISOString()
-          })
-          .eq("id", leadTask.id)
-          .eq("user_id", context.user.id);
+        if (context.projectId) {
+          await client
+            .from("nyx_studio_tasks")
+            .update({
+              status: "failed",
+              error_message: message,
+              completed_at: new Date().toISOString()
+            })
+            .eq("id", leadTask.id)
+            .eq("user_id", context.user.id);
+        }
 
         contributions.push({
           taskId: leadTask.id,
