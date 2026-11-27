@@ -474,12 +474,37 @@ export default function App() {
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      // Give each conversation a durable cloud project so NYX CORE can
-      // safely attach shared memory and studio task plans to it.
-      let cloudProjectId = existingConversation?.projectId || null;
+      // Reuse the creator's selected shared project when starting a new
+      // conversation. StudioWorkspace stores this selection across studios.
+      // Existing conversations keep their original project association.
+      let selectedSharedProjectId = null;
+      try {
+        selectedSharedProjectId = localStorage.getItem("nyx-active-project-id") || null;
+      } catch {
+        selectedSharedProjectId = null;
+      }
+
+      let cloudProjectId =
+        existingConversation?.projectId || selectedSharedProjectId;
       let cloudConversationId = existingConversation?.cloudConversationId || null;
 
-      if (!cloudProjectId) {
+      if (cloudProjectId) {
+        const { data: selectedProject, error: selectedProjectError } = await supabase
+          .from("nyx_projects")
+          .select("id")
+          .eq("id", cloudProjectId)
+          .eq("user_id", sessionData.session.user.id)
+          .maybeSingle();
+
+        if (selectedProjectError) throw selectedProjectError;
+        if (!selectedProject) {
+          throw new Error(
+            "Your selected shared project could not be found. Open a studio and select the project again."
+          );
+        }
+      } else {
+        // Keep the existing standalone-project behaviour when the creator
+        // has not selected a shared project.
         const { data: project, error: projectError } = await supabase
           .from("nyx_projects")
           .insert({
@@ -492,7 +517,9 @@ export default function App() {
 
         if (projectError) throw projectError;
         cloudProjectId = project.id;
+      }
 
+      if (existingConversation?.projectId !== cloudProjectId) {
         setConversations((previous) => previous.map((conversation) =>
           conversation.id === conversationId
             ? { ...conversation, projectId: cloudProjectId }
