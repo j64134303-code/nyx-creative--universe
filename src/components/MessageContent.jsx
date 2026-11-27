@@ -13,6 +13,8 @@ function normalizeMessageMarkdown(value) {
     .replace(/<br\s*\/?\s*>/gi, "\n")
     .replace(/&lt;br\s*\/?\s*&gt;/gi, "\n")
     // Decode common entities, without enabling raw HTML rendering.
+    .replace(/&#91;/gi, "[")
+    .replace(/&#93;/gi, "]")
     .replace(/&nbsp;/gi, " ")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
