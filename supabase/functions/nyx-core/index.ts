@@ -3395,8 +3395,10 @@ function canUseFallback(
 
   // Provider credentials are independent: a Groq auth failure must not
   // prevent trying a configured OpenRouter fallback.
-  // A malformed request (400) is unlikely to succeed unchanged elsewhere.
-  if (error.status === 400 || error.status === 413 || error.status === 429) return false;
+  // A malformed or oversized request is unlikely to succeed unchanged elsewhere.
+  // A 429 is different: it is provider-specific rate limiting, so try the
+  // independently configured fallback provider rather than failing the request.
+  if (error.status === 400 || error.status === 413) return false;
   return true;
 }
 
