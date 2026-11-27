@@ -369,6 +369,8 @@ type ResearchResult = {
   requested: boolean;
   available: boolean;
   verified: boolean;
+  saved: boolean;
+  saveMessage: string;
   sources: ResearchSource[];
 };
 
@@ -1877,6 +1879,8 @@ async function createResearchResult(
     requested,
     available: false,
     verified: false,
+    saved: false,
+    saveMessage: "No research sources were saved.",
     sources: []
   };
 
@@ -1942,33 +1946,52 @@ async function createResearchResult(
 
     if (sources.length === 0) return unavailable;
 
-    if (context.projectId) {
-      const records = sources.map(source => ({
-        project_id: context.projectId,
-        user_id: context.user.id,
-        studio_id: context.studio.id,
-        title: source.title,
-        url: source.url,
-        description: source.description,
-        source_type: "web",
-        verification_status: "unverified",
-        notes: "Retrieved by NYX live search. Source claims have not been independently verified.",
-        metadata: { provider: "tavily" }
-      }));
+    if (!context.projectId) {
+      return {
+        requested: true,
+        available: true,
+        verified: false,
+        saved: false,
+        saveMessage: "Research was found but not saved because no project is selected. Select a project and run the research again to save these sources.",
+        sources
+      };
+    }
 
-      const { error } = await client
-        .from("nyx_research_sources")
-        .upsert(records, { onConflict: "project_id,url" });
+    const records = sources.map(source => ({
+      project_id: context.projectId,
+      user_id: context.user.id,
+      studio_id: context.studio.id,
+      title: source.title,
+      url: source.url,
+      description: source.description,
+      source_type: "web",
+      verification_status: "unverified",
+      notes: "Retrieved by NYX live search. Source claims have not been independently verified.",
+      metadata: { provider: "tavily" }
+    }));
 
-      if (error) {
-        console.error("NYX research source persistence failed:", error.message);
-      }
+    const { error: saveError } = await client
+      .from("nyx_research_sources")
+      .upsert(records, { onConflict: "project_id,url" });
+
+    if (saveError) {
+      console.error("NYX research source persistence failed:", saveError.message);
+      return {
+        requested: true,
+        available: true,
+        verified: false,
+        saved: false,
+        saveMessage: "Research was found, but saving failed. The sources have not been added to the project. Please try again.",
+        sources
+      };
     }
 
     return {
       requested: true,
       available: true,
       verified: false,
+      saved: true,
+      saveMessage: `Saved ${sources.length} unverified research source(s) to the selected project.`,
       sources
     };
   } catch (error) {
@@ -2001,7 +2024,10 @@ function formatResearchContext(
 
   const lines = [
     "RESEARCH RESULTS",
-    `Verified: ${research.verified ? "Yes" : "No"}`
+    `Verified: ${research.verified ? "Yes" : "No"}`,
+    `Saved to project: ${research.saved ? "Yes" : "No"}`,
+    `Save status: ${research.saveMessage}`,
+    "Never claim that research sources were saved unless Saved to project is Yes."
   ];
 
   for (const source of research.sources) {
@@ -4784,6 +4810,12 @@ async function handleNYXRequest(
         note: "Supporting studio AI contributions were generated concurrently and saved to their studio task records. The lead studio then integrated the completed contributions. Each contribution remains subject to creator review; external media production still requires connected production services."
       }
     };
+
+    if (research.requested && research.available) {
+      responseData.response += research.saved
+        ? `\\n\\n**Research storage:** ${research.saveMessage}`
+        : `\\n\\n**Research storage:** ${research.saveMessage}`;
+    }
 
     if (canonIntent === "propose" || canonIntent === "revise") {
       if (projectCanon.draft && projectCanon.persisted) {
