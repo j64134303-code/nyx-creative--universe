@@ -30,8 +30,8 @@ const OPENROUTER_URL =
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_MESSAGE_LENGTH = 20_000;
-const MAX_HISTORY_MESSAGES = 12;
-const MAX_HISTORY_MESSAGE_LENGTH = 12_000;
+const MAX_HISTORY_MESSAGES = 8;
+const MAX_HISTORY_MESSAGE_LENGTH = 6_000;
 const MAX_PROJECT_ID_LENGTH = 128;
 const MAX_SELECTED_STUDIOS = 12;
 const MAX_DELIVERABLES = 20;
@@ -3281,7 +3281,7 @@ async function callNYXProvider(
         model: configuration.model,
         messages,
         temperature: 0.7,
-        max_tokens: 5000,
+        max_tokens: 3000,
         stream: false
       })
     }
@@ -3379,6 +3379,16 @@ async function callNYXProviderWithDiagnostics(
 function canUseFallback(
   error: unknown
 ): boolean {
+  // A timeout means the provider has already consumed its full time budget.
+  // Retrying the same request against another provider compounds latency and
+  // can push the entire Edge Function beyond its wall-clock limit.
+  if (
+    error instanceof Error &&
+    /timed out|timeout|abort/i.test(error.message)
+  ) {
+    return false;
+  }
+
   if (!(error instanceof NYXProviderError)) {
     return true;
   }
