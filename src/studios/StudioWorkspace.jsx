@@ -570,7 +570,7 @@ export default function StudioWorkspace({
           border-bottom: 1px solid #30213e;
         }
 
-        .nyx-history-toggle { flex-shrink:0; width:40px; height:40px; border:1px solid #49315e; border-radius:11px; background:#21172d; color:#eadcff; font-size:20px; cursor:pointer; }
+        .nyx-history-toggle { flex:0 0 auto !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; width:auto !important; min-width:76px !important; height:40px !important; padding:0 12px !important; border:1px solid #9b70c8 !important; border-radius:11px !important; background:#39234f !important; color:#fff !important; font-size:13px !important; font-weight:700 !important; cursor:pointer !important; visibility:visible !important; opacity:1 !important; position:relative !important; z-index:2 !important; }
         .nyx-history-backdrop { position:fixed; inset:0; z-index:100; display:flex; background:rgba(0,0,0,.68); }
         .nyx-history-drawer { width:min(86vw,350px); height:100%; display:flex; flex-direction:column; gap:12px; padding:18px 14px calc(18px + env(safe-area-inset-bottom)); background:#100d18; border-right:1px solid #49315e; box-shadow:18px 0 50px rgba(0,0,0,.35); }
         .nyx-history-top { display:flex; align-items:center; justify-content:space-between; color:#fff; font-size:16px; }
@@ -1017,7 +1017,7 @@ export default function StudioWorkspace({
       `}</style>
 
       <header className="nyx-chat-header">
-        <button type="button" className="nyx-history-toggle" onClick={() => setHistoryOpen(true)} aria-label="Open conversation history">☰</button>
+        <button type="button" className="nyx-history-toggle" onClick={() => setHistoryOpen(true)} aria-label="Open conversation history">☰ History</button>
         <button
           type="button"
           className="nyx-chat-back"
