@@ -650,22 +650,33 @@ export default function StudioWorkspace({
         .nyx-thread-search::placeholder { color: #91869e; }
         .nyx-thread-list {
           display: flex;
-          gap: 7px;
-          overflow-x: auto;
+          flex-direction: column;
+          gap: 5px;
+          max-height: 190px;
+          overflow-y: auto;
           padding: 2px 0 5px;
         }
         .nyx-thread-chip {
-          flex: 0 0 auto;
-          max-width: 210px;
+          display: block;
+          width: 100%;
+          max-width: none;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          text-align: left;
           font-weight: 500;
+          border-radius: 10px;
+          padding: 11px 13px;
+          background: transparent;
+          border-color: transparent;
         }
         .nyx-thread-chip.active {
-          background: #34204b;
-          border-color: #b78bfa;
+          background: #241a30;
+          border-color: #65458a;
           color: white;
+        }
+        .nyx-thread-chip:active {
+          background: #34204b;
         }
         .nyx-thread-meta {
           color: #aa9bb9;
@@ -1045,6 +1056,10 @@ export default function StudioWorkspace({
             placeholder="Find a task or conversation..."
             aria-label="Search studio conversations"
           />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2px 2px 7px" }}>
+            <span style={{ color: "#bca8ce", fontSize: 11, fontWeight: 700 }}>PAST CONVERSATIONS</span>
+            <span style={{ color: "#81758d", fontSize: 10 }}>{conversations.length} saved</span>
+          </div>
           <div className="nyx-thread-list">
             {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
             {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
@@ -1055,11 +1070,11 @@ export default function StudioWorkspace({
                 onClick={() => openThread(item)}
                 title={item.title}
               >
-                {item.conversation_type === "task" ? "✦ " : "☁ "}
+                <span style={{ marginRight: 9, color: "#c4a1f1" }}>{item.conversation_type === "task" ? "✦" : "☁"}</span>
                 {item.title || "Untitled work"}
               </button>
             ))}
-            {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your tasks and conversations will appear here.</span>}
+            {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your conversations will appear here.</span>}
           </div>
           {activeConversationId && (
             <details className="nyx-thread-context">
