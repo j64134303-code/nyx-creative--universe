@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
 import {
   getStudio,
   getStudioCollaborators
@@ -130,6 +131,15 @@ export default function StudioWorkspace({
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [assetBusy, setAssetBusy] = useState(false);
   const [assetError, setAssetError] = useState("");
+  const [filmPrompt, setFilmPrompt] = useState("");
+  const [filmDuration, setFilmDuration] = useState(5);
+  const [filmRatio, setFilmRatio] = useState("1280:720");
+  const [filmApproved, setFilmApproved] = useState(false);
+  const [filmBusy, setFilmBusy] = useState(false);
+  const [filmTask, setFilmTask] = useState(null);
+  const [filmTaskError, setFilmTaskError] = useState("");
+  const filmCredits = Math.ceil(Math.ceil(15.7 * Number(filmDuration)) * 0.8);
+
 
   const bottomRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -417,6 +427,65 @@ export default function StudioWorkspace({
       setMessages(items => items.map(messageItem => messageItem.id === item.id ? { ...messageItem, content: revised } : messageItem));
     } catch (err) {
       setError(err.message || "Could not edit this message.");
+    }
+  }
+
+
+  async function startFilmGeneration() {
+    if (!projectId) {
+      setFilmTaskError("Select a saved project before generating a shot.");
+      return;
+    }
+    if (!filmPrompt.trim()) {
+      setFilmTaskError("Describe the shot you want NYX to generate.");
+      return;
+    }
+    if (!filmApproved) {
+      setFilmTaskError("Review and tick the cost approval before generating.");
+      return;
+    }
+    setFilmBusy(true);
+    setFilmTaskError("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("nyx-core", {
+        body: {
+          action: "video_generate",
+          studioId: "film",
+          projectId,
+          promptText: filmPrompt.trim(),
+          duration: Number(filmDuration),
+          ratio: filmRatio,
+          confirmed: true,
+          approvedCredits: filmCredits
+        }
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.success) throw new Error(data?.error || "NYX could not start this generation.");
+      setFilmTask(data);
+      setFilmApproved(false);
+    } catch (err) {
+      setFilmTaskError(err.message || "Video generation could not be started.");
+    } finally {
+      setFilmBusy(false);
+    }
+  }
+
+  async function refreshFilmTask() {
+    const taskId = filmTask?.task?.id || filmTask?.taskId;
+    if (!taskId) return;
+    setFilmBusy(true);
+    setFilmTaskError("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("nyx-core", {
+        body: { action: "video_status", studioId: "film", projectId, taskId }
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.success) throw new Error(data?.error || "Could not retrieve the video status.");
+      setFilmTask(previous => ({ ...(previous || {}), ...data, task: previous?.task }));
+    } catch (err) {
+      setFilmTaskError(err.message || "Could not refresh the video status.");
+    } finally {
+      setFilmBusy(false);
     }
   }
 
@@ -1247,6 +1316,74 @@ export default function StudioWorkspace({
             </div>
           </details>
         </section>
+
+
+        {studioId === "film" && (
+          <section style={{ margin: "12px 14px 0", padding: 14, border: "1px solid #49315e", borderRadius: 14, background: "#15101e", color: "#f4edf9" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <strong style={{ fontSize: 14 }}>✦ Film production · Runway Kling 4.0</strong>
+              <span style={{ fontSize: 10, color: "#bda7d0" }}>720p test</span>
+            </div>
+            <p style={{ color: "#b9a9c8", fontSize: 11, lineHeight: 1.5, margin: "7px 0 10px" }}>
+              Generate one reviewed shot at a time. This is the first production connection; editing and final-film assembly are later stages.
+            </p>
+            <textarea
+              value={filmPrompt}
+              onChange={event => setFilmPrompt(event.target.value)}
+              maxLength={1000}
+              rows={3}
+              placeholder="Describe one cinematic shot..."
+              style={{ width: "100%", boxSizing: "border-box", resize: "vertical", padding: 10, borderRadius: 9, border: "1px solid #49315e", background: "#0d0914", color: "#fff", font: "inherit", fontSize: 12 }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
+              <label style={{ flex: 1, fontSize: 10, color: "#cdb8df" }}>
+                DURATION
+                <select value={filmDuration} onChange={event => { setFilmDuration(Number(event.target.value)); setFilmApproved(false); }} style={{ display: "block", width: "100%", marginTop: 4, padding: 8, borderRadius: 8, background: "#0d0914", color: "#fff", border: "1px solid #49315e" }}>
+                  {[3,5,10,15,20,25,30].map(value => <option key={value} value={value}>{value} seconds</option>)}
+                </select>
+              </label>
+              <label style={{ flex: 1, fontSize: 10, color: "#cdb8df" }}>
+                FRAME
+                <select value={filmRatio} onChange={event => setFilmRatio(event.target.value)} style={{ display: "block", width: "100%", marginTop: 4, padding: 8, borderRadius: 8, background: "#0d0914", color: "#fff", border: "1px solid #49315e" }}>
+                  <option value="1280:720">Landscape 16:9</option>
+                  <option value="720:1280">Portrait 9:16</option>
+                </select>
+              </label>
+            </div>
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: "#0d0914", fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span>Estimated generation cost</span>
+                <strong>{filmCredits} credits</strong>
+              </div>
+              <p style={{ color: "#9f90ad", fontSize: 10, margin: "5px 0 0" }}>
+                Promotional 720p estimate through Nov 30, 2026. Runway balance is currently 0; no generation can start without credits.
+              </p>
+            </div>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 10, fontSize: 11, lineHeight: 1.4, color: "#d8cce3" }}>
+              <input type="checkbox" checked={filmApproved} onChange={event => setFilmApproved(event.target.checked)} />
+              I approve spending up to {filmCredits} Runway credits for this shot.
+            </label>
+            <button type="button" onClick={startFilmGeneration} disabled={filmBusy || !projectId || !filmPrompt.trim() || !filmApproved} style={{ width: "100%", marginTop: 10, padding: 11, border: 0, borderRadius: 9, background: filmBusy || !projectId || !filmPrompt.trim() || !filmApproved ? "#493b55" : "#8b5cf6", color: "#fff", fontWeight: 700 }}>
+              {filmBusy ? "Working..." : "Generate approved shot"}
+            </button>
+            {!projectId && <p style={{ color: "#fbbf24", fontSize: 11, marginBottom: 0 }}>Select a shared project above to enable production.</p>}
+            {filmTaskError && <p style={{ color: "#fca5a5", fontSize: 11 }}>{filmTaskError}</p>}
+            {filmTask && (
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #49315e", fontSize: 11 }}>
+                <strong>Production status: {filmTask.status || filmTask.nyxStatus || "PENDING"}</strong>
+                {filmTask.task?.id && <p style={{ color: "#b9a9c8", overflowWrap: "anywhere" }}>NYX task: {filmTask.task.id}</p>}
+                <button type="button" onClick={refreshFilmTask} disabled={filmBusy} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #76549a", background: "transparent", color: "#e9d5ff" }}>
+                  {filmBusy ? "Checking..." : "Refresh status"}
+                </button>
+                {(filmTask.output || []).map((url, index) => (
+                  <p key={index}><a href={url} target="_blank" rel="noreferrer" style={{ color: "#c4b5fd" }}>Open generated video {index + 1}</a></p>
+                ))}
+                {filmTask.failure && <p style={{ color: "#fca5a5" }}>{String(filmTask.failure)}</p>}
+                <p style={{ color: "#9f90ad" }}>Wait at least five seconds between status checks.</p>
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="nyx-chat-scroll">
           {messages.length === 0 && (
