@@ -2186,16 +2186,16 @@ function validateProjectCanon(value: unknown): Record<string, unknown> | null {
 
 function detectProjectCanonIntent(message: string): ProjectCanonIntent {
   const text = normalizeStudioKeywordText(message);
-  if (!/\\bcanon\\b/.test(text)) return "none";
+  if (!/\bcanon\b/.test(text)) return "none";
 
   // Read-only retrieval wins over conditional words such as "create" or "approve".
-  const retrievalIntent = /\\b(retrieve|display|show|read|fetch|list|view)\\b/.test(text);
+  const retrievalIntent = /\b(retrieve|display|show|read|fetch|list|view)\b/.test(text);
   if (retrievalIntent) return "retrieve";
 
-  const revisionIntent = /\\b(revise|update|change|edit|correct|rework|replace)\\b/.test(text);
-  const creationIntent = /\\b(establish|create|define|draft|build|set)\\b/.test(text);
-  const reviewIntent = /\\b(confirm|review)\\b/.test(text);
-  const approvalIntent = /\\b(approve|accept|finalize|lock)\\b/.test(text);
+  const revisionIntent = /\b(revise|update|change|edit|correct|rework|replace)\b/.test(text);
+  const creationIntent = /\b(establish|create|define|draft|build|set)\b/.test(text);
+  const reviewIntent = /\b(confirm|review)\b/.test(text);
+  const approvalIntent = /\b(approve|accept|finalize|lock)\b/.test(text);
 
   if (revisionIntent) return "revise";
   if (creationIntent) return "propose";
