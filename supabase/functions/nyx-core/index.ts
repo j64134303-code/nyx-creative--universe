@@ -28,7 +28,7 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_URL =
   "https://openrouter.ai/api/v1/chat/completions";
 
-const REQUEST_TIMEOUT_MS = 45_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_HISTORY_MESSAGES = 12;
 const MAX_HISTORY_MESSAGE_LENGTH = 12_000;
@@ -1405,7 +1405,7 @@ function detectSupportingStudios(
   return scored
     .filter((item) => item.score >= 2)
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(0, MAX_SELECTED_STUDIOS - 1))
+    .slice(0, 2)
     .map((item) => item.studioId);
 }
 
@@ -2244,29 +2244,19 @@ async function loadMemoryContext(
     };
   }
 
-  const records: MemoryRecord[] = [];
+  const [personal, project] = await Promise.all([
+    settings.allowPersonalMemory
+      ? getPersonalMemory(client, userId)
+      : Promise.resolve([]),
+    settings.allowProjectMemory && projectId
+      ? getProjectMemory(client, userId, projectId)
+      : Promise.resolve([])
+  ]);
 
-  if (settings.allowPersonalMemory) {
-    const personal = await getPersonalMemory(
-      client,
-      userId
-    );
-
-    records.push(...personal);
-  }
-
-  if (
-    settings.allowProjectMemory &&
-    projectId
-  ) {
-    const project = await getProjectMemory(
-      client,
-      userId,
-      projectId
-    );
-
-    records.push(...project);
-  }
+  const records: MemoryRecord[] = [
+    ...personal,
+    ...project
+  ];
 
   return {
     settings,
@@ -3319,14 +3309,10 @@ function canUseFallback(
     return true;
   }
 
-  if (
-    error.status === 400 ||
-    error.status === 401 ||
-    error.status === 403
-  ) {
-    return false;
-  }
-
+  // Provider credentials are independent: a Groq auth failure must not
+  // prevent trying a configured OpenRouter fallback.
+  // A malformed request (400) is unlikely to succeed unchanged elsewhere.
+  if (error.status === 400) return false;
   return true;
 }
 
@@ -4565,7 +4551,7 @@ async function handleNYXRequest(
 
     // 3–4. Research and memory are independent; load them concurrently
     // so the creator does not wait for two sequential network/database paths.
-    const [research, memory] = await Promise.all([
+    const [research, memory, initialProjectCanon] = await Promise.all([
       createResearchResult(
         detectResearchRequest(context.message),
         context,
@@ -4575,15 +4561,16 @@ async function handleNYXRequest(
         client,
         context.user.id,
         context.projectId
+      ),
+      loadProjectCanon(
+        client,
+        context.user.id,
+        context.projectId
       )
     ]);
 
     // Load the shared canon from the authenticated project record.
-    let projectCanon = await loadProjectCanon(
-      client,
-      context.user.id,
-      context.projectId
-    );
+    let projectCanon = initialProjectCanon;
     const canonIntent = detectProjectCanonIntent(context.message);
 
     // Retrieval is deterministic and read-only. Search other owned project rows
