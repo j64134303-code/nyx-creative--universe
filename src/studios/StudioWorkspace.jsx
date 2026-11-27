@@ -3,7 +3,7 @@ import {
   getStudio,
   getStudioCollaborators
 } from "./StudioRegistry";
-import { runStudioRequest } from "./StudioEngine";
+import { listUserProjects, runStudioRequest } from "./StudioEngine";
 import "./studios.css";
 
 const QUICK_IDEAS = {
@@ -87,9 +87,34 @@ export default function StudioWorkspace({
   const [error, setError] = useState("");
   const [loadedStudioId, setLoadedStudioId] = useState(null);
   const [dictating, setDictating] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState(() => {
+    try { return localStorage.getItem("nyx-active-project-id") || ""; } catch { return ""; }
+  });
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   const bottomRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    listUserProjects()
+      .then(items => {
+        if (!active) return;
+        setProjects(items);
+        setProjectId(current => {
+          const next = items.some(item => item.id === current) ? current : "";
+          try {
+            if (next) localStorage.setItem("nyx-active-project-id", next);
+            else localStorage.removeItem("nyx-active-project-id");
+          } catch {}
+          return next;
+        });
+      })
+      .catch(err => { if (active) setError(err.message || "Could not load saved projects."); })
+      .finally(() => { if (active) setProjectsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!studio) return;
@@ -231,7 +256,8 @@ export default function StudioWorkspace({
       const output = await runStudioRequest({
         studioId,
         message: creatorMessage,
-        history: previousMessages
+        history: previousMessages,
+        projectId: projectId || null
       });
 
       const assistantMessage = {
@@ -633,6 +659,27 @@ export default function StudioWorkspace({
           <h1>{studio.name}</h1>
           <p>{studio.category}</p>
         </div>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, maxWidth: 150, color: "#cdb8df", fontSize: 10 }}>
+          SHARED PROJECT
+          <select
+            value={projectId}
+            disabled={projectsLoading}
+            onChange={event => {
+              const next = event.target.value;
+              setProjectId(next);
+              try {
+                if (next) localStorage.setItem("nyx-active-project-id", next);
+                else localStorage.removeItem("nyx-active-project-id");
+              } catch {}
+            }}
+            style={{ maxWidth: 150, minWidth: 0, padding: "7px 6px", borderRadius: 8, background: "#1a1522", color: "white", border: "1px solid #49315e", fontSize: 11 }}
+          >
+            <option value="">{projectsLoading ? "Loading..." : "No project selected"}</option>
+            {projects.map(item => (
+              <option key={item.id} value={item.id}>{item.title || "Untitled project"}</option>
+            ))}
+          </select>
+        </label>
       </header>
 
       <div className="nyx-chat-content">
