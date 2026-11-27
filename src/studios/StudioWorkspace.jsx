@@ -464,7 +464,7 @@ export default function StudioWorkspace({
 
       const workspaceContext = [
         studio.purpose,
-        contextDraft ? "CREATOR-EDITED WORKSPACE CONTEXT:\\n" + contextDraft : "",
+        contextDraft ? "CREATOR-EDITED WORKSPACE CONTEXT:\n" + contextDraft : "",
         projectAssets.length
           ? [
               "SHARED PROJECT ASSET MANIFEST (metadata only; media contents have not yet been visually/audio analyzed):",
@@ -474,9 +474,9 @@ export default function StudioWorkspace({
                 return `- ${asset.file_name || "Unnamed asset"} | type: ${type} | MIME: ${asset.mime_type || "unknown"} | bytes: ${size} | uploaded: ${asset.created_at || "unknown"}`;
               }),
               "Use this manifest to refer to available files and ask the creator which asset to work with when unclear. Do not claim to have viewed, heard, transcribed, or edited any asset unless a connected media-analysis or production service actually did so."
-            ].join("\\n")
+            ].join("\n")
           : "No shared project assets are currently attached."
-      ].filter(Boolean).join("\\n\\n");
+      ].filter(Boolean).join("\n\n");
 
       const output = await runStudioRequest({
         studioId,
