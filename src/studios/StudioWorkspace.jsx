@@ -1014,6 +1014,57 @@ export default function StudioWorkspace({
             padding-right: 7%;
           }
         }
+
+        /* ChatGPT-style transcript: assistant replies are flowing text, not cards. */
+        .nyx-chat-scroll .nyx-chat-message.assistant {
+          display: block;
+          align-self: stretch;
+          width: 100%;
+          max-width: 760px;
+          margin: 0 auto;
+          padding: 5px 2px 18px;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          box-shadow: none;
+          color: #eee6f7;
+          font-size: 14px;
+          line-height: 1.8;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+        .nyx-chat-scroll .nyx-chat-message.user {
+          width: fit-content;
+          max-width: 88%;
+          padding: 12px 15px;
+          border-radius: 17px 17px 4px 17px;
+          background: #512779;
+          color: #fff;
+          box-shadow: none;
+        }
+        .nyx-chat-scroll .nyx-chat-message.assistant small {
+          color: #81758d;
+          font-size: 9px;
+        }
+        .nyx-chat-scroll .nyx-chat-message.assistant .nyx-chat-sources {
+          max-width: 100%;
+          border-top: 1px solid #30213e;
+        }
+        .nyx-chat-scroll .nyx-chat-message.assistant .nyx-message-edit {
+          opacity: .7;
+          margin-top: 5px;
+        }
+        @media (max-width: 600px) {
+          .nyx-chat-scroll .nyx-chat-message.assistant {
+            max-width: 100%;
+            padding-left: 1px;
+            padding-right: 1px;
+            font-size: 14px;
+          }
+          .nyx-chat-scroll .nyx-chat-message.user {
+            max-width: 88%;
+          }
+        }
       `}</style>
 
       <header className="nyx-chat-header">
