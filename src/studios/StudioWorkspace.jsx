@@ -17,6 +17,7 @@ import {
 } from "./StudioEngine";
 import { deleteProjectAsset, listProjectAssets, saveProjectAsset } from "./ProjectAssets";
 import "./studios.css";
+import MessageContent from "../components/MessageContent";
 
 const QUICK_IDEAS = {
   music: [
@@ -1295,7 +1296,7 @@ export default function StudioWorkspace({
                 overflowWrap: "anywhere"
               } : undefined}
             >
-              {item.content}
+              {item.role === "assistant" ? <MessageContent content={item.content} /> : item.content}
 
               {item.sources?.length > 0 && (
                 <div className="nyx-chat-sources">
