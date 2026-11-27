@@ -191,3 +191,133 @@ STUDIO RULES:
     projectId
   };
 }
+
+
+// Persistent studio conversation storage. Row Level Security scopes every
+// operation to the signed-in creator; local legacy history is never deleted.
+async function requireStudioUser() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) throw new Error("Please sign in to save studio conversations.");
+  return data.user;
+}
+
+export async function listStudioConversations({ studioId }) {
+  await requireStudioUser();
+  const { data, error } = await supabase
+    .from("nyx_conversations")
+    .select("id, title, studio_id, project_id, conversation_type, context, created_at, updated_at")
+    .eq("studio_id", studioId)
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error("NYX could not load your saved studio conversations.");
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createStudioConversation({
+  studioId, projectId = null, title = "New conversation",
+  conversationType = "conversation", context = {}
+}) {
+  const user = await requireStudioUser();
+  const { data, error } = await supabase
+    .from("nyx_conversations")
+    .insert({
+      user_id: user.id,
+      studio_id: studioId,
+      project_id: projectId,
+      title,
+      conversation_type: conversationType,
+      context
+    })
+    .select("id, title, studio_id, project_id, conversation_type, context, created_at, updated_at")
+    .single();
+  if (error || !data) throw new Error("NYX could not create this conversation. Check that the latest studio conversation migration has been applied.");
+  return data;
+}
+
+export async function listStudioMessages(conversationId) {
+  await requireStudioUser();
+  const { data, error } = await supabase
+    .from("nyx_messages")
+    .select("id, role, content, metadata, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true })
+    .limit(500);
+  if (error) throw new Error("NYX could not load this conversation's history.");
+  return (data || []).map(item => ({
+    id: item.id,
+    role: item.role,
+    content: item.content,
+    sources: Array.isArray(item.metadata?.sources) ? item.metadata.sources : [],
+    provider: item.metadata?.provider || null,
+    metadata: item.metadata || {},
+    created_at: item.created_at
+  }));
+}
+
+export async function saveStudioMessage({ conversationId, role, content, metadata = {} }) {
+  const user = await requireStudioUser();
+  const { data, error } = await supabase
+    .from("nyx_messages")
+    .insert({
+      conversation_id: conversationId,
+      user_id: user.id,
+      role,
+      content,
+      metadata
+    })
+    .select("id, role, content, metadata, created_at")
+    .single();
+  if (error || !data) throw new Error("NYX could not save a message to this conversation.");
+  await supabase.from("nyx_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+  return {
+    id: data.id,
+    role: data.role,
+    content: data.content,
+    sources: Array.isArray(data.metadata?.sources) ? data.metadata.sources : [],
+    provider: data.metadata?.provider || null,
+    metadata: data.metadata || {},
+    created_at: data.created_at
+  };
+}
+
+export async function renameStudioConversation({ conversationId, title }) {
+  await requireStudioUser();
+  const cleanTitle = String(title || "").trim().slice(0, 120);
+  if (!cleanTitle) throw new Error("Please enter a title.");
+  const { error } = await supabase
+    .from("nyx_conversations")
+    .update({ title: cleanTitle })
+    .eq("id", conversationId);
+  if (error) throw new Error("NYX could not rename this conversation.");
+  return cleanTitle;
+}
+
+export async function updateStudioConversationContext({ conversationId, context }) {
+  await requireStudioUser();
+  const { error } = await supabase
+    .from("nyx_conversations")
+    .update({ context })
+    .eq("id", conversationId);
+  if (error) throw new Error("NYX could not save the edited context.");
+}
+
+export async function editStudioMessage({ messageId, content, metadata = {} }) {
+  await requireStudioUser();
+  const { data: current, error: readError } = await supabase
+    .from("nyx_messages")
+    .select("content, metadata")
+    .eq("id", messageId)
+    .single();
+  if (readError || !current) throw new Error("NYX could not load the message for editing.");
+  const revisions = Array.isArray(current.metadata?.revisions) ? current.metadata.revisions : [];
+  const nextMetadata = {
+    ...current.metadata,
+    ...metadata,
+    revisions: [...revisions, { content: current.content, savedAt: new Date().toISOString() }].slice(-20)
+  };
+  const { error } = await supabase
+    .from("nyx_messages")
+    .update({ content: String(content || ""), metadata: nextMetadata })
+    .eq("id", messageId);
+  if (error) throw new Error("NYX could not save your message edit.");
+}
