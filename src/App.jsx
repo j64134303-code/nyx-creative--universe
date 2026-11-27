@@ -231,6 +231,12 @@ function BottomNavigation({ page, onNavigate }) {
 
 export default function App() {
   const [conversations, setConversations] = useState(loadConversations);
+  const [savedProjects, setSavedProjects] = useState([]);
+  const [savedProjectsLoading, setSavedProjectsLoading] = useState(false);
+  const [savedProjectsError, setSavedProjectsError] = useState("");
+  const [activeSharedProjectId, setActiveSharedProjectId] = useState(() => {
+    try { return localStorage.getItem("nyx-active-project-id") || ""; } catch { return ""; }
+  });
   const [activeConversation, setActiveConversation] = useState(null);
   const [activeStudio, setActiveStudio] = useState(null);
   const [workspaceStudioId, setWorkspaceStudioId] = useState(null);
@@ -280,6 +286,47 @@ export default function App() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (page !== "projects" || !user) return;
+    let active = true;
+    setSavedProjectsLoading(true);
+    setSavedProjectsError("");
+    (async () => {
+      const { data, error } = await supabase
+        .from("nyx_projects")
+        .select("id, title, description, lead_studio_id, status, created_at, updated_at")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(100);
+      if (!active) return;
+      if (error) {
+        setSavedProjectsError(error.message || "Could not load saved projects.");
+        setSavedProjects([]);
+      } else {
+        const rows = Array.isArray(data) ? data : [];
+        setSavedProjects(rows);
+        setActiveSharedProjectId(current => {
+          const selected = rows.some(project => project.id === current) ? current : "";
+          try {
+            if (selected) localStorage.setItem("nyx-active-project-id", selected);
+            else localStorage.removeItem("nyx-active-project-id");
+          } catch {}
+          return selected;
+        });
+      }
+      setSavedProjectsLoading(false);
+    })();
+    return () => { active = false; };
+  }, [page, user]);
+
+  const selectSharedProject = (id) => {
+    setActiveSharedProjectId(id);
+    try {
+      if (id) localStorage.setItem("nyx-active-project-id", id);
+      else localStorage.removeItem("nyx-active-project-id");
+    } catch {}
+  };
 
   const currentConversation = conversations.find(
     (conversation) => conversation.id === activeConversation
@@ -1055,34 +1102,79 @@ export default function App() {
       ) : page === "projects" ? (
         <section className="nyx-page-content">
           <h1>Your Projects</h1>
-          <p>Continue working on your previous creations.</p>
+          <p>Saved creative projects shared across your NYX studios.</p>
 
-          {conversations.length === 0 ? (
+          {!user ? (
             <div className="nyx-empty-chat">
               <FolderOpen size={35} />
-              <h3>No projects yet</h3>
-              <p>Start a conversation in one of your studios.</p>
+              <h3>Sign in to view saved projects</h3>
+              <p>Your project records are private to your account.</p>
             </div>
-          ) : conversations.map((conversation) => {
-            const studio = findStudio(conversation.studioId);
+          ) : (
+            <>
+              <div className="nyx-projects-shared">
+                <strong>ACTIVE SHARED PROJECT</strong>
+                <select
+                  value={activeSharedProjectId}
+                  disabled={savedProjectsLoading || savedProjects.length === 0}
+                  onChange={event => selectSharedProject(event.target.value)}
+                >
+                  <option value="">No project selected</option>
+                  {savedProjects.map(project => (
+                    <option key={project.id} value={project.id}>{project.title || "Untitled project"}</option>
+                  ))}
+                </select>
+                <small>Choose a project to make it available across your studios.</small>
+              </div>
 
+              {savedProjectsLoading && <p>Loading saved projects...</p>}
+              {savedProjectsError && <p className="nyx-chat-error">{savedProjectsError}</p>}
+              {!savedProjectsLoading && !savedProjectsError && savedProjects.length === 0 && (
+                <div className="nyx-empty-chat">
+                  <FolderOpen size={35} />
+                  <h3>No saved projects found</h3>
+                  <p>Your existing database projects will appear here when available.</p>
+                </div>
+              )}
+              {savedProjects.map(project => (
+                <div className="nyx-project-item" key={project.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectSharedProject(project.id)}
+                    aria-pressed={activeSharedProjectId === project.id}
+                  >
+                    <FolderOpen size={19} />
+                    <span>
+                      <strong>{project.title || "Untitled project"}</strong>
+                      <small>{project.status || "active"} · {project.lead_studio_id || "No lead studio"} · Updated {formatDate(project.updated_at || project.created_at)}</small>
+                      {project.description ? <small>{project.description}</small> : null}
+                    </span>
+                  </button>
+                  {activeSharedProjectId === project.id && <span className="nyx-project-selected">Shared</span>}
+                </div>
+              ))}
+            </>
+          )}
+
+          <h2 style={{ marginTop: 28 }}>Recent conversations</h2>
+          <p>These are chats, not separate project records.</p>
+          {conversations.length === 0 ? (
+            <div className="nyx-empty-chat"><p>No conversations yet.</p></div>
+          ) : conversations.map(conversation => {
+            const studio = findStudio(conversation.studioId);
             return (
               <div className="nyx-project-item" key={conversation.id}>
-                <button onClick={() => openConversation(conversation)}>
+                <button type="button" onClick={() => openConversation(conversation)}>
                   <FolderOpen size={19} />
-
                   <span>
                     <strong>{conversation.title}</strong>
-                    <small>
-                      {studio?.name || "Studio"} · {formatDate(conversation.updatedAt)}
-                    </small>
+                    <small>{studio?.name || "Studio"} · {formatDate(conversation.updatedAt)}</small>
                   </span>
                 </button>
-
                 <button
                   onClick={() => deleteConversation(conversation.id)}
-                  title="Delete project"
-                  aria-label="Delete project"
+                  title="Delete conversation"
+                  aria-label="Delete conversation"
                 >
                   <Trash2 size={16} />
                 </button>
