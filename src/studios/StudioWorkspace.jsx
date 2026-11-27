@@ -3,7 +3,17 @@ import {
   getStudio,
   getStudioCollaborators
 } from "./StudioRegistry";
-import { listUserProjects, runStudioRequest } from "./StudioEngine";
+import {
+  listUserProjects,
+  runStudioRequest,
+  listStudioConversations,
+  createStudioConversation,
+  listStudioMessages,
+  saveStudioMessage,
+  renameStudioConversation,
+  updateStudioConversationContext,
+  editStudioMessage
+} from "./StudioEngine";
 import { deleteProjectAsset, listProjectAssets, saveProjectAsset } from "./ProjectAssets";
 import "./studios.css";
 
@@ -74,6 +84,18 @@ function getStorageKey(studioId) {
   return `nyx-studio-chat-${studioId}`;
 }
 
+function makeConversationTitle(value) {
+  const cleaned = String(value || "")
+    .replace(/^(hey|hello|hi)\s+nyx[,.! ]*/i, "")
+    .replace(/^(please\s+)?(help me|let's|lets|i want to|can you)\s+/i, "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+  const words = (cleaned || "New creative work").split(/\s+/).slice(0, 7);
+  let title = words.join(" ").replace(/[.!?]+$/, "");
+  if (title.length > 54) title = title.slice(0, 51).trimEnd() + "...";
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
 export default function StudioWorkspace({
   studioId,
   onBack,
@@ -87,6 +109,13 @@ export default function StudioWorkspace({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [loadedStudioId, setLoadedStudioId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [conversationType, setConversationType] = useState("conversation");
+  const [conversationTitle, setConversationTitle] = useState("");
+  const [contextDraft, setContextDraft] = useState("");
+  const [contextSaving, setContextSaving] = useState(false);
+  const [threadLoading, setThreadLoading] = useState(false);
   const [dictating, setDictating] = useState(false);
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState(() => {
@@ -140,40 +169,83 @@ export default function StudioWorkspace({
   }, [projectId]);
 
   useEffect(() => {
-    if (!studio) return;
-
+    let active = true;
+    if (!studio) return () => { active = false; };
     setMessages([]);
+    setConversations([]);
+    setActiveConversationId(null);
     setError("");
     setLoadedStudioId(null);
+    setThreadLoading(true);
 
-    try {
-      const saved = localStorage.getItem(
-        getStorageKey(studioId)
-      );
+    (async () => {
+      try {
+        const rows = await listStudioConversations({ studioId });
+        if (!active) return;
+        let available = rows;
 
-      const parsed = saved ? JSON.parse(saved) : [];
-
-      setMessages(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setMessages([]);
-    }
-
-    setLoadedStudioId(studioId);
+        // One-time, non-destructive migration of the old browser-only chat.
+        // The original localStorage copy is intentionally retained as backup.
+        if (rows.length === 0) {
+          let legacy = [];
+          try {
+            const saved = localStorage.getItem(getStorageKey(studioId));
+            const parsed = saved ? JSON.parse(saved) : [];
+            if (Array.isArray(parsed)) legacy = parsed;
+          } catch {}
+          if (legacy.length > 0) {
+            const first = legacy.find(item => item.role === "user")?.content || "Earlier studio work";
+            const migrated = await createStudioConversation({
+              studioId,
+              projectId: projectId || null,
+              title: makeConversationTitle(first),
+              conversationType: "conversation",
+              context: { migratedFromBrowserHistory: true }
+            });
+            for (const item of legacy) {
+              if (!item?.content || !["user", "assistant"].includes(item.role)) continue;
+              await saveStudioMessage({
+                conversationId: migrated.id,
+                role: item.role,
+                content: item.content,
+                metadata: { sources: item.sources || [], provider: item.provider || null, migrated: true }
+              });
+            }
+            available = [migrated];
+          }
+        }
+        if (!active) return;
+        setConversations(available);
+        if (available.length > 0) {
+          const selected = available[0];
+          setActiveConversationId(selected.id);
+          setConversationType(selected.conversation_type || "conversation");
+          setConversationTitle(selected.title || "");
+          setContextDraft(selected.context?.notes || selected.context?.text || "");
+          const history = await listStudioMessages(selected.id);
+          if (active) setMessages(history);
+        } else {
+          setMessages([]);
+        }
+      } catch (err) {
+        if (active) setError(err.message || "Could not load saved conversations.");
+      } finally {
+        if (active) {
+          setLoadedStudioId(studioId);
+          setThreadLoading(false);
+        }
+      }
+    })();
+    return () => { active = false; };
   }, [studioId]);
 
   useEffect(() => {
-    if (loadedStudioId !== studioId) return;
-
+    if (loadedStudioId !== studioId || !activeConversationId) return;
+    // Keep a local recovery copy, while the cloud database remains the source of truth.
     try {
-      localStorage.setItem(
-        getStorageKey(studioId),
-        JSON.stringify(messages)
-      );
-    } catch {
-      // Chat remains available for the current session
-      // if device storage is unavailable.
-    }
-  }, [messages, loadedStudioId, studioId]);
+      localStorage.setItem(getStorageKey(studioId), JSON.stringify(messages));
+    } catch {}
+  }, [messages, loadedStudioId, studioId, activeConversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({
