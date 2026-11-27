@@ -1402,11 +1402,21 @@ function detectSupportingStudios(
     researchMatch.score += 2;
   }
 
-  return scored
+  const ranked = scored
     .filter((item) => item.score >= 2)
     .sort((a, b) => b.score - a.score)
     .slice(0, 2)
     .map((item) => item.studioId);
+
+  // Every substantive studio request must have at least one specialist
+  // handoff. If no keyword match is strong enough, use a declared dependency.
+  if (ranked.length === 0) {
+    const fallback = dependencies.find((id) => id !== leadStudioId) ??
+      STUDIOS.find((studio) => studio.id !== leadStudioId)?.id;
+    if (fallback) ranked.push(fallback);
+  }
+
+  return ranked;
 }
 
 /* =========================================================
@@ -1438,7 +1448,13 @@ function mergeStudioSelections(
   }
 
   if (mode === "manual") {
+    // Preserve creator choices, then add only the minimum specialist
+    // handoff required by NYX's collaboration policy.
     for (const studioId of creatorSelections) {
+      addStudio(studioId);
+    }
+    for (const studioId of recommendations) {
+      if (selected.length >= 2) break;
       addStudio(studioId);
     }
   }
@@ -1718,7 +1734,13 @@ function formatOrchestrationContext(
     "- Respect creator permissions and approval requirements."
   );
   lines.push(
-    "- Do not silently add studios in manual selection mode."
+    "- Collaboration is mandatory for substantive work: one lead studio and at least one relevant supporting studio."
+  );
+  lines.push(
+    "- In manual mode, preserve creator choices and add only the minimum specialist handoff needed to prevent the lead studio carrying unrelated work alone."
+  );
+  lines.push(
+    "- Keep the supporting team small and task-specific; do not involve all studios by default."
   );
   lines.push(
     "- Do not claim a studio has completed work without confirmation from an actual execution service."
@@ -3387,6 +3409,13 @@ You must understand when a project needs:
 
 Do not send every request to every studio.
 Select studios according to the actual task.
+For every substantive creative or production request, collaboration is mandatory:
+assign one lead studio and at least one relevant supporting studio. Keep the
+supporting team as small as possible, delegate distinct specialist work, and
+do not make the lead studio perform unrelated specialist tasks itself.
+Even in manual selection mode, preserve creator choices and add only the
+minimum relevant specialist needed for collaboration. Simple greetings and
+read-only retrieval may remain single-studio operations.
 
 STUDIO SELECTION
 
