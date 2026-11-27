@@ -462,9 +462,20 @@ export default function StudioWorkspace({
         setConversations(items => items.map(item => item.id === threadId ? { ...item, title } : item));
       }
 
-      const studioContext = [
+      const workspaceContext = [
         studio.purpose,
-        contextDraft ? "CREATOR-EDITED WORKSPACE CONTEXT:\\n" + contextDraft : ""
+        contextDraft ? "CREATOR-EDITED WORKSPACE CONTEXT:\\n" + contextDraft : "",
+        projectAssets.length
+          ? [
+              "SHARED PROJECT ASSET MANIFEST (metadata only; media contents have not yet been visually/audio analyzed):",
+              ...projectAssets.map(asset => {
+                const size = Number(asset.size_bytes || 0);
+                const type = asset.asset_type || "file";
+                return `- ${asset.file_name || "Unnamed asset"} | type: ${type} | MIME: ${asset.mime_type || "unknown"} | bytes: ${size} | uploaded: ${asset.created_at || "unknown"}`;
+              }),
+              "Use this manifest to refer to available files and ask the creator which asset to work with when unclear. Do not claim to have viewed, heard, transcribed, or edited any asset unless a connected media-analysis or production service actually did so."
+            ].join("\\n")
+          : "No shared project assets are currently attached."
       ].filter(Boolean).join("\\n\\n");
 
       const output = await runStudioRequest({
@@ -472,7 +483,7 @@ export default function StudioWorkspace({
         message: creatorMessage,
         history: previousMessages,
         projectId: projectId || null,
-        studioContext
+        workspaceContext
       });
 
       const assistantMessage = await saveStudioMessage({
@@ -493,26 +504,53 @@ export default function StudioWorkspace({
   }
 
   async function handleAssetUpload(event) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = "";
-    if (!file || !projectId || assetBusy) return;
+    if (files.length === 0 || !projectId || assetBusy) return;
+
+    if (files.length > 10) {
+      setAssetError("Please upload up to 10 files at a time.");
+      return;
+    }
 
     setAssetBusy(true);
     setAssetError("");
+    const failures = [];
+    let savedCount = 0;
+
     try {
-      await saveProjectAsset({
-        projectId,
-        studioId,
-        file,
-        assetType: file.type.startsWith("image/") ? "image" :
-          file.type.startsWith("audio/") ? "audio" :
-          file.type.startsWith("video/") ? "video" : "document",
-        metadata: { uploadedFrom: "studio-workspace" }
-      });
+      // Upload sequentially to avoid overwhelming mobile connections.
+      for (const file of files) {
+        try {
+          const assetType = file.type.startsWith("image/") ? "image" :
+            file.type.startsWith("audio/") ? "audio" :
+            file.type.startsWith("video/") ? "video" : "document";
+          await saveProjectAsset({
+            projectId,
+            studioId,
+            file,
+            assetType,
+            metadata: {
+              uploadedFrom: "studio-workspace",
+              originalLastModified: file.lastModified || null
+            }
+          });
+          savedCount += 1;
+        } catch (err) {
+          failures.push(`${file.name}: ${err.message || "upload failed"}`);
+        }
+      }
+
       const refreshed = await listProjectAssets({ projectId });
       setProjectAssets(refreshed);
+
+      if (failures.length) {
+        setAssetError(
+          `${savedCount} of ${files.length} files uploaded. ${failures.join(" | ")}`
+        );
+      }
     } catch (err) {
-      setAssetError(err.message || "Could not save this asset.");
+      setAssetError(err.message || "Could not refresh project assets.");
     } finally {
       setAssetBusy(false);
     }
@@ -1179,16 +1217,18 @@ export default function StudioWorkspace({
 
                 <h3 style={{ marginTop: 14 }}>SHARED PROJECT ASSETS</h3>
                 <p style={{ fontSize: 12, opacity: 0.8 }}>
-                  Upload scripts, reference images, audio and other project files. Private to your account.
+                  Upload up to 10 scripts, reference images, audio clips or videos at once. Files are private to your account; each file has a 20 MB limit.
                 </p>
                 <input
                   type="file"
+                  multiple
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
                   disabled={!projectId || assetBusy}
                   onChange={handleAssetUpload}
                   style={{ width: "100%", margin: "8px 0", fontSize: 12 }}
                 />
                 {!projectId && <p style={{ fontSize: 12 }}>Select a shared project to manage its assets.</p>}
-                {assetBusy && <p style={{ fontSize: 12 }}>Saving project asset...</p>}
+                {assetBusy && <p style={{ fontSize: 12 }}>Uploading project files one by one...</p>}
                 {assetsLoading && <p style={{ fontSize: 12 }}>Loading project assets...</p>}
                 {assetError && <p style={{ color: "#fca5a5", fontSize: 12 }}>{assetError}</p>}
                 {projectAssets.map(asset => (
