@@ -2217,7 +2217,7 @@ function formatProjectCanonContext(canon: ProjectCanonState): string {
       "If a creator request conflicts with canon, explain the conflict and ask for approval before changing canon.",
       JSON.stringify(canon.approved, null, 2),
       canon.draft ? "A revision draft exists but is NOT approved. Continue following the approved canon until the creator approves the draft." : ""
-    ].join("\\n");
+    ].join("\n");
   }
   if (canon.draft) {
     return [
@@ -2225,7 +2225,7 @@ function formatProjectCanonContext(canon: ProjectCanonState): string {
       "This is a proposal for creator review, not approved canon.",
       "Do not treat it as permission to begin production or alter project facts.",
       JSON.stringify(canon.draft, null, 2)
-    ].join("\\n");
+    ].join("\n");
   }
   return "No shared project canon has been approved yet. Do not invent or claim that a canon has been saved.";
 }
@@ -2259,7 +2259,7 @@ function buildProjectCanonInstructions(intent: ProjectCanonIntent): string {
     "The mainCharacters list must contain only creator-approved main characters. Do not silently add or rename main characters.",
     "Do not trigger specialist studio work while the creator is establishing or revising canon. Show the canon for review first.",
     "For approve: the server will approve only an existing saved draft after an explicit creator instruction. Do not create a new canon or claim approval if no draft exists."
-  ].join("\\n");
+  ].join("\n");
 }
 
 /* -------------------------
@@ -3939,7 +3939,7 @@ async function persistStudioTaskPlan(
 
     const responsibilities = orchestration.responsibilities[studioId] ?? [];
     const instructions = responsibilities.length
-      ? responsibilities.join("\\n")
+      ? responsibilities.join("\n")
       : `Contribute specialist work to the project request: ${context.message}`;
 
     const { data, error } = await client
