@@ -604,6 +604,91 @@ export default function StudioWorkspace({
           overflow: hidden;
         }
 
+        .nyx-thread-bar {
+          flex-shrink: 0;
+          padding: 10px 13px;
+          background: #100d18;
+          border-bottom: 1px solid #30213e;
+        }
+        .nyx-thread-actions {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 9px;
+        }
+        .nyx-thread-actions button, .nyx-thread-chip {
+          border: 1px solid #49315e;
+          border-radius: 13px;
+          background: #1b1427;
+          color: #eadcff;
+          padding: 9px 12px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .nyx-thread-actions button.primary {
+          background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+          border-color: #a78bfa;
+          color: white;
+        }
+        .nyx-thread-list {
+          display: flex;
+          gap: 7px;
+          overflow-x: auto;
+          padding: 2px 0 5px;
+        }
+        .nyx-thread-chip {
+          flex: 0 0 auto;
+          max-width: 210px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-weight: 500;
+        }
+        .nyx-thread-chip.active {
+          background: #34204b;
+          border-color: #b78bfa;
+          color: white;
+        }
+        .nyx-thread-meta {
+          color: #aa9bb9;
+          font-size: 9px;
+          margin-left: 5px;
+        }
+        .nyx-thread-context {
+          margin-top: 7px;
+          color: #d8b4fe;
+          font-size: 11px;
+        }
+        .nyx-thread-context textarea {
+          width: 100%;
+          min-height: 65px;
+          margin-top: 7px;
+          padding: 9px;
+          border: 1px solid #49315e;
+          border-radius: 10px;
+          background: #17121f;
+          color: white;
+          font: inherit;
+          font-size: 12px;
+        }
+        .nyx-thread-context button {
+          margin-top: 7px;
+          border: 1px solid #68429a;
+          border-radius: 9px;
+          background: #34204b;
+          color: white;
+          padding: 7px 11px;
+        }
+        .nyx-message-edit {
+          display: block;
+          margin-top: 8px;
+          border: 0;
+          background: transparent;
+          color: #c4a1f1;
+          font-size: 10px;
+          cursor: pointer;
+          padding: 2px 0;
+        }
         .nyx-chat-tools {
           flex-shrink: 0;
           padding: 10px 14px;
@@ -922,6 +1007,37 @@ export default function StudioWorkspace({
       </header>
 
       <div className="nyx-chat-content">
+        <section className="nyx-thread-bar">
+          <div className="nyx-thread-actions">
+            <button type="button" className="primary" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>＋ New Task</button>
+            <button type="button" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>✎ New Conversation</button>
+          </div>
+          <div className="nyx-thread-list">
+            {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
+            {conversations.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                className={`nyx-thread-chip ${item.id === activeConversationId ? "active" : ""}`}
+                onClick={() => openThread(item)}
+                title={item.title}
+              >
+                {item.conversation_type === "task" ? "✦ " : "☁ "}
+                {item.title || "Untitled work"}
+              </button>
+            ))}
+            {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your tasks and conversations will appear here.</span>}
+          </div>
+          {activeConversationId && (
+            <details className="nyx-thread-context">
+              <summary>✧ {conversationType === "task" ? "Task" : "Conversation"} details · {conversationTitle || "Untitled"}</summary>
+              <button type="button" onClick={handleRenameThread} style={{ marginTop: 8, border: "1px solid #68429a", borderRadius: 9, background: "#34204b", color: "white", padding: "7px 10px" }}>Rename workspace</button>
+              <textarea value={contextDraft} onChange={event => setContextDraft(event.target.value)} placeholder="Add or edit instructions, background, context and project notes for this workspace..." />
+              <button type="button" onClick={handleSaveContext} disabled={contextSaving}>{contextSaving ? "Saving..." : "Save context"}</button>
+            </details>
+          )}
+        </section>
+
         <section className="nyx-chat-tools">
           <details>
             <summary>✦ Studio workspace & tools</summary>
@@ -1040,6 +1156,9 @@ export default function StudioWorkspace({
 
               {item.provider && (
                 <small>Processed by {item.provider}</small>
+              )}
+              {activeConversationId && (
+                <button type="button" className="nyx-message-edit" onClick={() => handleEditMessage(item)}>✎ Edit message</button>
               )}
             </article>
           ))}
