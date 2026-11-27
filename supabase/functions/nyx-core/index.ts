@@ -4563,19 +4563,20 @@ async function handleNYXRequest(
     // 2. Decide which studios should work together
     const orchestration = buildOrchestration(context);
 
-    // 3. Prepare research context
-    const research = await createResearchResult(
-      detectResearchRequest(context.message),
-      context,
-      client
-    );
-
-    // 4. Load permitted user and project memory
-    const memory = await loadMemoryContext(
-      client,
-      context.user.id,
-      context.projectId
-    );
+    // 3–4. Research and memory are independent; load them concurrently
+    // so the creator does not wait for two sequential network/database paths.
+    const [research, memory] = await Promise.all([
+      createResearchResult(
+        detectResearchRequest(context.message),
+        context,
+        client
+      ),
+      loadMemoryContext(
+        client,
+        context.user.id,
+        context.projectId
+      )
+    ]);
 
     // Load the shared canon from the authenticated project record.
     let projectCanon = await loadProjectCanon(
@@ -4656,7 +4657,10 @@ async function handleNYXRequest(
     }
 
     // Canon drafting/review is a creator approval stage, not a studio handoff.
-    const taskPlan = canonIntent === "none"
+    // A single-studio request is handled by one AI call. Do not create a
+    // redundant task record or run a second lead-studio integration pass.
+    // Persist handoff plans only when at least one supporting studio is selected.
+    const taskPlan = canonIntent === "none" && orchestration.selectedStudios.length > 1
       ? await persistStudioTaskPlan(client, context, orchestration)
       : [];
 
@@ -4713,7 +4717,7 @@ async function handleNYXRequest(
         canonIntent
       );
 
-      if (taskPlan.length > 0) {
+      if (taskPlan.length > 0 && orchestration.selectedStudios.length > 1) {
         const collaboration = await executeStudioCollaboration(
           client,
           context,
