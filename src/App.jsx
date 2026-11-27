@@ -13,6 +13,7 @@ import { supabase } from "./lib/supabase";
 import ResearchHub from "./ResearchHub";
 import Home from "./Home";
 import StudioWorkspace from "./studios/StudioWorkspace";
+import MessageContent from "./components/MessageContent";
 
 const STORAGE_KEY = "nyx-conversations-v1";
 
@@ -117,7 +118,7 @@ function MessageBubble({ item, searchTerm = "" }) {
       )}
 
       <div className="nyx-message-bubble">
-        {item.text && <p>{highlightText(item.text)}</p>}
+        {item.text && (searchTerm ? <p>{highlightText(item.text)}</p> : <MessageContent content={item.text} />)}
 
         {item.attachments?.map((file, index) => (
           <div className="nyx-message-attachment" key={index}>
