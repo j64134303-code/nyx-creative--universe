@@ -354,7 +354,7 @@ type MemoryContext = {
   contextText: string;
 };
 
-type ProjectCanonIntent = "propose" | "revise" | "approve" | "none";
+type ProjectCanonIntent = "propose" | "revise" | "approve" | "retrieve" | "none";
 
 type ProjectCanonState = {
   approved: Record<string, unknown> | null;
@@ -2186,19 +2186,21 @@ function validateProjectCanon(value: unknown): Record<string, unknown> | null {
 
 function detectProjectCanonIntent(message: string): ProjectCanonIntent {
   const text = normalizeStudioKeywordText(message);
-  if (!/\bcanon\b/.test(text)) return "none";
+  if (!/\\bcanon\\b/.test(text)) return "none";
 
-  // A creator may request a draft and explicitly say not to approve it.
-  // Draft/revision intent must take priority over approval words in that sentence.
-  const revisionIntent = /\b(revise|update|change|edit|correct|rework|replace)\b/.test(text);
-  const creationIntent = /\b(establish|create|define|draft|build|set)\b/.test(text);
-  const reviewIntent = /\b(show|confirm|review)\b/.test(text);
-  const approvalIntent = /\b(approve|accept|finalize|lock)\b/.test(text);
+  // Read-only retrieval wins over conditional words such as "create" or "approve".
+  const retrievalIntent = /\\b(retrieve|display|show|read|fetch|list|view)\\b/.test(text);
+  if (retrievalIntent) return "retrieve";
+
+  const revisionIntent = /\\b(revise|update|change|edit|correct|rework|replace)\\b/.test(text);
+  const creationIntent = /\\b(establish|create|define|draft|build|set)\\b/.test(text);
+  const reviewIntent = /\\b(confirm|review)\\b/.test(text);
+  const approvalIntent = /\\b(approve|accept|finalize|lock)\\b/.test(text);
 
   if (revisionIntent) return "revise";
   if (creationIntent) return "propose";
   if (approvalIntent) return "approve";
-  if (reviewIntent) return "propose";
+  if (reviewIntent) return "retrieve";
   return "none";
 }
 
@@ -2215,6 +2217,71 @@ async function loadProjectCanon(client: ReturnType<typeof createUserSupabaseClie
     metadata,
     persisted: true
   };
+}
+
+async function findSavedProjectCanonByTitle(
+  client: ReturnType<typeof createUserSupabaseClient>,
+  userId: string,
+  message: string
+): Promise<{ projectId: string; canon: ProjectCanonState } | null> {
+  const { data, error } = await client
+    .from("nyx_projects")
+    .select("id, metadata")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error || !Array.isArray(data)) {
+    throw new Error("Unable to search your saved project canons.");
+  }
+
+  const normalizedMessage = normalizeStudioKeywordText(message);
+  for (const row of data) {
+    const metadata = isPlainObject(row.metadata) ? row.metadata : {};
+    const stored = isPlainObject(metadata.nyxCanon) ? metadata.nyxCanon : {};
+    const draft = validateProjectCanon(stored.draft);
+    const approved = validateProjectCanon(stored.approved);
+    const candidate = draft ?? approved;
+    const title = candidate && typeof candidate.projectTitle === "string"
+      ? normalizeStudioKeywordText(candidate.projectTitle)
+      : "";
+
+    if (!title || !normalizedMessage.includes(title)) continue;
+
+    return {
+      projectId: String(row.id),
+      canon: {
+        approved,
+        draft,
+        version: typeof stored.version === "number" && Number.isFinite(stored.version)
+          ? Math.max(0, Math.floor(stored.version))
+          : 0,
+        metadata,
+        persisted: true
+      }
+    };
+  }
+  return null;
+}
+
+function formatProjectCanonForCreator(canon: ProjectCanonState): string {
+  const selected = canon.draft ?? canon.approved;
+  if (!selected) {
+    return "No saved draft or approved canon was found for this project. Nothing was changed.";
+  }
+
+  const lines = [
+    `**${String(selected.projectTitle ?? "Untitled project")} — shared project canon**`,
+    `Status: ${canon.approved ? (canon.draft ? "Approved canon with a pending revision draft" : "Approved and active") : "Saved draft — not approved"}`,
+    `Version: ${canon.version}`,
+    "",
+    canon.draft ? "**Saved draft (not approved):**" : "**Approved canon:**",
+    JSON.stringify(selected, null, 2)
+  ];
+  if (canon.approved && canon.draft) {
+    lines.push("", "**Currently approved canon:**", JSON.stringify(canon.approved, null, 2));
+  }
+  return lines.join("\\n");
 }
 
 function formatProjectCanonContext(canon: ProjectCanonState): string {
@@ -4314,6 +4381,64 @@ async function handleNYXRequest(
       context.projectId
     );
     const canonIntent = detectProjectCanonIntent(context.message);
+
+    // Retrieval is deterministic and read-only. Search other owned project rows
+    // by explicit title when this chat is attached to a different project row.
+    if (canonIntent === "retrieve") {
+      let retrievedProjectId = context.projectId;
+      if (!projectCanon.draft && !projectCanon.approved) {
+        const match = await findSavedProjectCanonByTitle(
+          client,
+          context.user.id,
+          context.message
+        );
+        if (match) {
+          retrievedProjectId = match.projectId;
+          projectCanon = match.canon;
+        }
+      }
+
+      const responseText = formatProjectCanonForCreator(projectCanon);
+      const retrievalData = {
+        response: responseText,
+        summary: projectCanon.draft || projectCanon.approved
+          ? "Retrieved saved project canon. No changes were made."
+          : "No saved project canon was found.",
+        studio: context.studio,
+        orchestration,
+        deliverables: [],
+        sources: [],
+        research,
+        memory: { success: false, action: "none", message: "No memory changes were made." },
+        productionStatus: "not_started",
+        provider: "database",
+        model: "saved-project-canon",
+        taskPlan: [],
+        projectCanon: {
+          status: projectCanon.approved
+            ? projectCanon.draft ? "approved_with_pending_draft" : "approved"
+            : projectCanon.draft ? "draft" : "not_set",
+          version: projectCanon.version,
+          persisted: projectCanon.persisted,
+          approvalRequired: Boolean(projectCanon.draft),
+          projectId: retrievedProjectId,
+          draft: projectCanon.draft,
+          approved: projectCanon.approved
+        },
+        collaboration: {
+          persisted: false,
+          status: "not_started",
+          tasks: [],
+          note: "Read-only canon retrieval. No studio handoffs or project changes were made."
+        }
+      };
+
+      return new Response(
+        JSON.stringify({ success: true, data: retrievalData, ...retrievalData, core: "NYX CORE" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     memory.contextText += "\n\n" + formatProjectCanonContext(projectCanon);
 
     // Explicit approval promotes only a previously saved draft.
