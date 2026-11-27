@@ -138,6 +138,7 @@ export default function StudioWorkspace({
   const [filmBusy, setFilmBusy] = useState(false);
   const [filmTask, setFilmTask] = useState(null);
   const [filmTaskError, setFilmTaskError] = useState("");
+  const [filmCheckResult, setFilmCheckResult] = useState(null);
   const filmCredits = Math.ceil(Math.ceil(15.7 * Number(filmDuration)) * 0.8);
 
 
@@ -430,6 +431,28 @@ export default function StudioWorkspace({
     }
   }
 
+
+  async function checkFilmSetup() {
+    if (!projectId) {
+      setFilmTaskError("Select The Last Kingdom or another saved project first.");
+      return;
+    }
+    setFilmBusy(true);
+    setFilmTaskError("");
+    setFilmCheckResult(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("nyx-core", {
+        body: { action: "video_check", studioId: "film", projectId }
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.success) throw new Error(data?.error || "NYX setup check failed.");
+      setFilmCheckResult(data);
+    } catch (err) {
+      setFilmTaskError(err.message || "Could not check the Runway setup.");
+    } finally {
+      setFilmBusy(false);
+    }
+  }
 
   async function startFilmGeneration() {
     if (!projectId) {
@@ -1327,6 +1350,14 @@ export default function StudioWorkspace({
             <p style={{ color: "#b9a9c8", fontSize: 11, lineHeight: 1.5, margin: "7px 0 10px" }}>
               Generate one reviewed shot at a time. This is the first production connection; editing and final-film assembly are later stages.
             </p>
+            <button type="button" onClick={checkFilmSetup} disabled={filmBusy || !projectId} style={{ width: "100%", marginTop: 10, padding: 10, border: "1px solid #76549a", borderRadius: 9, background: "transparent", color: "#e9d5ff", fontWeight: 600 }}>
+              {filmBusy ? "Checking..." : "Check Runway setup (no generation)"}
+            </button>
+            {filmCheckResult && (
+              <p style={{ color: "#86efac", fontSize: 11, lineHeight: 1.5 }}>
+                NYX backend: connected. Runway secret: present. API key validity: not yet verified. No video was submitted and no credits were spent.
+              </p>
+            )}
             <textarea
               value={filmPrompt}
               onChange={event => setFilmPrompt(event.target.value)}
