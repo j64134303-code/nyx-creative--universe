@@ -3335,6 +3335,44 @@ async function callNYXProvider(
 }
 
 /* -------------------------
+   PROVIDER TIMING DIAGNOSTICS
+   Records provider, model, duration and
+   failure class without logging prompts
+   or creator content.
+------------------------- */
+
+async function callNYXProviderWithDiagnostics(
+  provider: AIProvider,
+  messages: NYXProviderMessage[]
+): Promise<NYXProviderResult> {
+  const configuration = getProviderConfiguration(provider);
+  const startedAt = Date.now();
+
+  console.log("NYX provider attempt started", {
+    provider,
+    model: configuration.model
+  });
+
+  try {
+    const result = await callNYXProvider(provider, messages);
+    console.log("NYX provider attempt completed", {
+      provider,
+      model: result.model,
+      duration_ms: Date.now() - startedAt
+    });
+    return result;
+  } catch (error) {
+    console.error("NYX provider attempt failed", {
+      provider,
+      model: configuration.model,
+      duration_ms: Date.now() - startedAt,
+      error: error instanceof Error ? error.message.slice(0, 300) : "Unknown provider error"
+    });
+    throw error;
+  }
+}
+
+/* -------------------------
    5. GROQ FIRST, OPENROUTER FALLBACK
 ------------------------- */
 
@@ -3357,7 +3395,7 @@ async function runNYXIntelligence(
 ): Promise<NYXProviderResult> {
   if (GROQ_API_KEY) {
     try {
-      return await callNYXProvider(
+      return await callNYXProviderWithDiagnostics(
         "groq",
         messages
       );
@@ -3372,7 +3410,7 @@ async function runNYXIntelligence(
   }
 
   if (OPENROUTER_API_KEY) {
-    return await callNYXProvider(
+    return await callNYXProviderWithDiagnostics(
       "openrouter",
       messages
     );
