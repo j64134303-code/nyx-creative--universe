@@ -44,7 +44,8 @@ export async function runStudioRequest({
   studioId,
   message,
   history = [],
-  projectId = null
+  projectId = null,
+  workspaceContext = ""
 }) {
   const studio = getStudio(studioId);
 
@@ -136,7 +137,7 @@ STUDIO RULES:
         message: message.trim(),
 
         // Send studio instructions as separate context.
-        studioContext,
+        studioContext: [studioContext, workspaceContext].filter(Boolean).join("\n\n"),
 
         studioName: studio.name,
         studioId: studio.id,
