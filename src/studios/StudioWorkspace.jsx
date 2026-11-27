@@ -12,7 +12,8 @@ import {
   saveStudioMessage,
   renameStudioConversation,
   updateStudioConversationContext,
-  editStudioMessage
+  editStudioMessage,
+  updateStudioConversationProject
 } from "./StudioEngine";
 import { deleteProjectAsset, listProjectAssets, saveProjectAsset } from "./ProjectAssets";
 import "./studios.css";
@@ -219,6 +220,7 @@ export default function StudioWorkspace({
         if (available.length > 0) {
           const selected = available[0];
           setActiveConversationId(selected.id);
+          setProjectId(selected.project_id || "");
           setConversationType(selected.conversation_type || "conversation");
           setConversationTitle(selected.title || "");
           setContextDraft(selected.context?.notes || selected.context?.text || "");
@@ -341,6 +343,7 @@ export default function StudioWorkspace({
       });
       setConversations(items => [row, ...items]);
       setActiveConversationId(row.id);
+      setProjectId(row.project_id || "");
       setConversationType(type);
       setConversationTitle(row.title);
       setContextDraft("");
@@ -360,6 +363,7 @@ export default function StudioWorkspace({
     try {
       const history = await listStudioMessages(row.id);
       setActiveConversationId(row.id);
+      setProjectId(row.project_id || "");
       setConversationType(row.conversation_type || "conversation");
       setConversationTitle(row.title || "");
       setContextDraft(row.context?.notes || row.context?.text || "");
@@ -988,13 +992,21 @@ export default function StudioWorkspace({
           <select
             value={projectId}
             disabled={projectsLoading}
-            onChange={event => {
+            onChange={async event => {
               const next = event.target.value;
               setProjectId(next);
               try {
                 if (next) localStorage.setItem("nyx-active-project-id", next);
                 else localStorage.removeItem("nyx-active-project-id");
               } catch {}
+              if (activeConversationId) {
+                try {
+                  await updateStudioConversationProject({ conversationId: activeConversationId, projectId: next });
+                  setConversations(items => items.map(item => item.id === activeConversationId ? { ...item, project_id: next || null } : item));
+                } catch (err) {
+                  setError(err.message || "Could not update the shared project.");
+                }
+              }
             }}
             style={{ maxWidth: 150, minWidth: 0, padding: "7px 6px", borderRadius: 8, background: "#1a1522", color: "white", border: "1px solid #49315e", fontSize: 11 }}
           >
@@ -1158,7 +1170,17 @@ export default function StudioWorkspace({
                 <small>Processed by {item.provider}</small>
               )}
               {activeConversationId && (
-                <button type="button" className="nyx-message-edit" onClick={() => handleEditMessage(item)}>✎ Edit message</button>
+                <>
+                  <button type="button" className="nyx-message-edit" onClick={() => handleEditMessage(item)}>✎ Edit message</button>
+                  {item.metadata?.revisions?.length > 0 && (
+                    <details style={{ marginTop: 5, color: "#bda6d2", fontSize: 10 }}>
+                      <summary>Previous versions ({item.metadata.revisions.length})</summary>
+                      {item.metadata.revisions.map((revision, index) => (
+                        <p key={index} style={{ whiteSpace: "pre-wrap", opacity: 0.8 }}>{revision.content}</p>
+                      ))}
+                    </details>
+                  )}
+                </>
               )}
             </article>
           ))}
