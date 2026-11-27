@@ -322,3 +322,12 @@ export async function editStudioMessage({ messageId, content, metadata = {} }) {
     .eq("id", messageId);
   if (error) throw new Error("NYX could not save your message edit.");
 }
+
+export async function updateStudioConversationProject({ conversationId, projectId }) {
+  await requireStudioUser();
+  const { error } = await supabase
+    .from("nyx_conversations")
+    .update({ project_id: projectId || null })
+    .eq("id", conversationId);
+  if (error) throw new Error("NYX could not update this workspace's shared project.");
+}
