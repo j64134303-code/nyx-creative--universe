@@ -16,6 +16,7 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+const TAVILY_API_KEY = Deno.env.get("TAVILY_API_KEY") ?? "";
 
 const GROQ_MODEL =
   Deno.env.get("GROQ_MODEL") ?? "openai/gpt-oss-120b";
@@ -1864,19 +1865,118 @@ function buildResearchInstructions(
 ------------------------- */
 
 /**
- * No live research provider is connected by this section.
- * This prevents NYX from pretending it has verified sources.
+ * Tavily provides live search results. Results are stored as unverified
+ * references: a search result is not proof that every claim on a page is true.
  */
-
-function createResearchResult(
-  requested: boolean
-): ResearchResult {
-  return {
+async function createResearchResult(
+  requested: boolean,
+  context: RequestContext,
+  client: ReturnType<typeof createUserSupabaseClient>
+): Promise<ResearchResult> {
+  const unavailable: ResearchResult = {
     requested,
     available: false,
     verified: false,
     sources: []
   };
+
+  if (!requested || !TAVILY_API_KEY) return unavailable;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        api_key: TAVILY_API_KEY,
+        query: safeString(context.message, 700),
+        topic: "general",
+        search_depth: "basic",
+        max_results: 8,
+        include_answer: false,
+        include_raw_content: false
+      })
+    });
+
+    if (!response.ok) {
+      console.error("Tavily research request failed:", response.status);
+      return unavailable;
+    }
+
+    const payload = await response.json();
+    const results = Array.isArray(payload?.results)
+      ? payload.results
+      : [];
+
+    const sources: ResearchSource[] = results
+      .map((item: Record<string, unknown>) => {
+        const rawUrl = safeString(item.url, 2000);
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(rawUrl);
+        } catch {
+          return null;
+        }
+
+        if (
+          parsedUrl.protocol !== "https:" &&
+          parsedUrl.protocol !== "http:"
+        ) return null;
+
+        if (parsedUrl.username || parsedUrl.password) return null;
+
+        return {
+          title: safeString(item.title, 300) || parsedUrl.hostname,
+          url: parsedUrl.toString(),
+          description: safeString(item.content, 1200),
+          verified: false
+        };
+      })
+      .filter((item: ResearchSource | null): item is ResearchSource => Boolean(item))
+      .slice(0, 8);
+
+    if (sources.length === 0) return unavailable;
+
+    if (context.projectId) {
+      const records = sources.map(source => ({
+        project_id: context.projectId,
+        user_id: context.user.id,
+        studio_id: context.studio.id,
+        title: source.title,
+        url: source.url,
+        description: source.description,
+        source_type: "web",
+        verification_status: "unverified",
+        notes: "Retrieved by NYX live search. Source claims have not been independently verified.",
+        metadata: { provider: "tavily" }
+      }));
+
+      const { error } = await client
+        .from("nyx_research_sources")
+        .upsert(records, { onConflict: "project_id,url" });
+
+      if (error) {
+        console.error("NYX research source persistence failed:", error.message);
+      }
+    }
+
+    return {
+      requested: true,
+      available: true,
+      verified: false,
+      sources
+    };
+  } catch (error) {
+    console.error("NYX live research failed:", error);
+    return unavailable;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /* -------------------------
@@ -4438,8 +4538,10 @@ async function handleNYXRequest(
     const orchestration = buildOrchestration(context);
 
     // 3. Prepare research context
-    const research = createResearchResult(
-      detectResearchRequest(context.message)
+    const research = await createResearchResult(
+      detectResearchRequest(context.message),
+      context,
+      client
     );
 
     // 4. Load permitted user and project memory
