@@ -2342,25 +2342,39 @@ function formatProjectCanonForCreator(canon: ProjectCanonState): string {
 }
 
 function formatProjectCanonContext(canon: ProjectCanonState): string {
+  const continuityRules = [
+    "SHARED PROJECT CONTINUITY RULES — APPLY TO EVERY STUDIO",
+    "Treat the supplied project canon as the creator's current continuity reference. If it is a draft, clearly preserve its NOT APPROVED status; do not describe it as approved.",
+    "Do not silently add, rename, remove or rewrite characters, abilities, relationships, locations, historical events, world rules, timeline details or major plot facts.",
+    "Do not introduce new named or speaking characters unless the creator explicitly requests them. If the creator says to use only the listed characters, use only those characters; do not add a captain, guard, messenger, narrator-character or other speaking role.",
+    "Use only abilities and supernatural effects explicitly established for each character. Do not infer new powers from objects, relics, weapons, runes, books, visual effects or dramatic wording.",
+    "Do not turn an open question, possibility, assumption or item requiring approval into an established fact.",
+    "When a scene needs a detail the canon does not establish, either omit it, keep it neutral and non-contradictory, or label it clearly as a proposal for creator approval. Do not present it as settled project history.",
+    "Before responding, check the output against the canon: character names and roles, character abilities, setting, timeline, storyline and creator constraints. Remove unsupported additions or flag them explicitly.",
+    "Creative quality must come from dialogue, atmosphere, pacing, staging and the established characters—not from silently expanding canon."
+  ];
   if (canon.approved) {
     return [
       "APPROVED SHARED PROJECT CANON — AUTHORITATIVE",
       "This canon is the single source of truth for every studio.",
-      "Do not rename, contradict, replace or silently expand established facts, main characters, setting, timeline or storyline.",
-      "If a creator request conflicts with canon, explain the conflict and ask for approval before changing canon.",
+      ...continuityRules,
       JSON.stringify(canon.approved, null, 2),
-      canon.draft ? "A revision draft exists but is NOT approved. Continue following the approved canon until the creator approves the draft." : ""
+      canon.draft ? "A revision draft exists but is NOT approved. Continue following the approved canon until the creator approves the draft. Do not apply draft-only changes as facts." : ""
     ].join("\n");
   }
   if (canon.draft) {
     return [
-      "UNAPPROVED PROJECT CANON DRAFT",
-      "This is a proposal for creator review, not approved canon.",
-      "Do not treat it as permission to begin production or alter project facts.",
+      "SAVED UNAPPROVED PROJECT CANON DRAFT — WORKING CONTINUITY REFERENCE",
+      "This draft is NOT approved and must never be described as approved or final.",
+      "Until the creator revises or approves it, use the saved draft as the current working reference for continuity. This does not authorize canon changes or production approval.",
+      ...continuityRules,
       JSON.stringify(canon.draft, null, 2)
     ].join("\n");
   }
-  return "No shared project canon has been approved yet. Do not invent or claim that a canon has been saved.";
+  return [
+    "No shared project canon is attached to this request.",
+    "Do not claim a canon has been saved or approved. Do not assume facts from a different project."
+  ].join("\n");
 }
 
 async function saveProjectCanonDraft(client: ReturnType<typeof createUserSupabaseClient>, userId: string, projectId: string | null, current: ProjectCanonState, draftValue: unknown): Promise<ProjectCanonState> {
@@ -4197,8 +4211,12 @@ async function executeStudioCollaboration(
               "Produce a concrete, useful contribution that the lead studio can integrate.",
               "Do not claim external research, media generation, rendering, publishing or file creation occurred unless a connected service actually did it.",
               "Clearly label assumptions and anything needing creator approval.",
-              "Follow the APPROVED SHARED PROJECT CANON exactly when one is supplied.",
-              "Do not create or rename main characters, locations, timelines, rules or major plot facts that contradict approved canon.",
+              "Follow the shared project continuity rules and supplied canon or saved draft exactly.",
+              "The canon may be an unapproved draft: preserve its NOT APPROVED status, but use it as the current working continuity reference.",
+              "Do not introduce new named or speaking characters unless the creator explicitly asks. If the creator says to use only listed characters, introduce no additional characters.",
+              "Do not invent character powers, supernatural effects, locations, timeline events or major plot facts. Use only abilities and facts explicitly established in the supplied canon.",
+              "Treat open questions and items requiring creator approval as unresolved, never as established facts.",
+              "Before returning your contribution, check it against the supplied character list, roles, abilities, setting, timeline, storyline and creator constraints; remove unsupported additions.",
               "If a request conflicts with canon, flag the conflict instead of silently changing it.",
               "Keep the contribution focused and practical."
             ].join("\n")
