@@ -327,54 +327,158 @@ export default function StudioWorkspace({
     recognition.start();
   }
 
+  async function startNewThread(type) {
+    if (loading || threadLoading) return;
+    setError("");
+    setThreadLoading(true);
+    try {
+      const row = await createStudioConversation({
+        studioId,
+        projectId: projectId || null,
+        title: type === "task" ? "New task" : "New conversation",
+        conversationType: type,
+        context: {}
+      });
+      setConversations(items => [row, ...items]);
+      setActiveConversationId(row.id);
+      setConversationType(type);
+      setConversationTitle(row.title);
+      setContextDraft("");
+      setMessages([]);
+      setMessage("");
+    } catch (err) {
+      setError(err.message || "Could not start a new workspace.");
+    } finally {
+      setThreadLoading(false);
+    }
+  }
+
+  async function openThread(row) {
+    if (!row || row.id === activeConversationId || loading) return;
+    setThreadLoading(true);
+    setError("");
+    try {
+      const history = await listStudioMessages(row.id);
+      setActiveConversationId(row.id);
+      setConversationType(row.conversation_type || "conversation");
+      setConversationTitle(row.title || "");
+      setContextDraft(row.context?.notes || row.context?.text || "");
+      setMessages(history);
+      setMessage("");
+    } catch (err) {
+      setError(err.message || "Could not open this workspace.");
+    } finally {
+      setThreadLoading(false);
+    }
+  }
+
+  async function handleRenameThread() {
+    if (!activeConversationId) return;
+    const next = window.prompt("Give this workspace a title:", conversationTitle);
+    if (next === null || !next.trim()) return;
+    try {
+      const title = await renameStudioConversation({ conversationId: activeConversationId, title: next });
+      setConversationTitle(title);
+      setConversations(items => items.map(item => item.id === activeConversationId ? { ...item, title } : item));
+    } catch (err) {
+      setError(err.message || "Could not rename this workspace.");
+    }
+  }
+
+  async function handleSaveContext() {
+    if (!activeConversationId || contextSaving) return;
+    setContextSaving(true);
+    try {
+      const context = { notes: contextDraft };
+      await updateStudioConversationContext({ conversationId: activeConversationId, context });
+      setConversations(items => items.map(item => item.id === activeConversationId ? { ...item, context } : item));
+      setError("");
+    } catch (err) {
+      setError(err.message || "Could not save the workspace context.");
+    } finally {
+      setContextSaving(false);
+    }
+  }
+
+  async function handleEditMessage(item) {
+    const revised = window.prompt("Edit this message. Previous versions are retained:", item.content);
+    if (revised === null || revised === item.content) return;
+    try {
+      await editStudioMessage({ messageId: item.id, content: revised });
+      setMessages(items => items.map(messageItem => messageItem.id === item.id ? { ...messageItem, content: revised } : messageItem));
+    } catch (err) {
+      setError(err.message || "Could not edit this message.");
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
-
     const creatorMessage = message.trim();
-
     if (!creatorMessage || loading) return;
 
-    const previousMessages = messages;
-
-    const userMessage = {
-      role: "user",
-      content: creatorMessage,
-      id: `${Date.now()}-user`
-    };
-
-    setMessages(previous => [...previous, userMessage]);
     setMessage("");
     setError("");
     setLoading(true);
+    const previousMessages = messages;
 
     try {
+      let threadId = activeConversationId;
+      let activeTitle = conversationTitle;
+      if (!threadId) {
+        const row = await createStudioConversation({
+          studioId,
+          projectId: projectId || null,
+          title: conversationType === "task" ? "New task" : "New conversation",
+          conversationType,
+          context: { notes: contextDraft }
+        });
+        threadId = row.id;
+        activeTitle = row.title;
+        setActiveConversationId(row.id);
+        setConversationTitle(row.title);
+        setConversations(items => [row, ...items]);
+      }
+
+      const userMessage = await saveStudioMessage({
+        conversationId: threadId,
+        role: "user",
+        content: creatorMessage
+      });
+      setMessages(previous => [...previous, userMessage]);
+
+      if (previousMessages.length === 0) {
+        const title = makeConversationTitle(creatorMessage);
+        await renameStudioConversation({ conversationId: threadId, title });
+        activeTitle = title;
+        setConversationTitle(title);
+        setConversations(items => items.map(item => item.id === threadId ? { ...item, title } : item));
+      }
+
+      const studioContext = [
+        studio.purpose,
+        contextDraft ? "CREATOR-EDITED WORKSPACE CONTEXT:\\n" + contextDraft : ""
+      ].filter(Boolean).join("\\n\\n");
+
       const output = await runStudioRequest({
         studioId,
         message: creatorMessage,
         history: previousMessages,
-        projectId: projectId || null
+        projectId: projectId || null,
+        studioContext
       });
 
-      const assistantMessage = {
+      const assistantMessage = await saveStudioMessage({
+        conversationId: threadId,
         role: "assistant",
         content: output.response,
-        sources: output.sources || [],
-        provider: output.provider,
-        id: `${Date.now()}-assistant`
-      };
+        metadata: { sources: output.sources || [], provider: output.provider || null, model: output.model || null, deliverables: output.deliverables || [] }
+      });
+      setMessages(previous => [...previous, assistantMessage]);
+      setConversations(items => items.map(item => item.id === threadId ? { ...item, title: activeTitle, updated_at: new Date().toISOString() } : item));
 
-      setMessages(previous => [
-        ...previous,
-        assistantMessage
-      ]);
-
-      if (onResult) {
-        onResult(output);
-      }
+      if (onResult) onResult(output);
     } catch (err) {
-      setError(
-        err.message || "NYX could not complete that request."
-      );
+      setError(err.message || "NYX could not complete that request.");
     } finally {
       setLoading(false);
     }
