@@ -1,0 +1,94 @@
+.nyx-markdown-content {
+  min-width: 0;
+  color: inherit;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+.nyx-markdown-content > :first-child { margin-top: 0; }
+.nyx-markdown-content > :last-child { margin-bottom: 0; }
+.nyx-markdown-content p { margin: 0 0 12px; white-space: normal; }
+.nyx-markdown-content h1,
+.nyx-markdown-content h2,
+.nyx-markdown-content h3,
+.nyx-markdown-content h4 {
+  color: #f5eaff;
+  line-height: 1.3;
+  margin: 20px 0 9px;
+  font-weight: 700;
+}
+.nyx-markdown-content h1 { font-size: 1.45em; }
+.nyx-markdown-content h2 { font-size: 1.25em; }
+.nyx-markdown-content h3 { font-size: 1.1em; }
+.nyx-markdown-content h4 { font-size: 1em; }
+.nyx-markdown-content strong { color: #fff; font-weight: 700; }
+.nyx-markdown-content em { color: #e8d8f7; }
+.nyx-markdown-content ul,
+.nyx-markdown-content ol {
+  margin: 8px 0 14px;
+  padding-left: 24px;
+  white-space: normal;
+}
+.nyx-markdown-content li { margin: 5px 0; padding-left: 2px; }
+.nyx-markdown-content li > p { margin: 3px 0; }
+.nyx-markdown-content blockquote {
+  margin: 12px 0;
+  padding: 3px 0 3px 13px;
+  border-left: 3px solid #8b5cf6;
+  color: #cbb9dc;
+}
+.nyx-markdown-content hr {
+  border: 0;
+  border-top: 1px solid #40304f;
+  margin: 18px 0;
+}
+.nyx-markdown-content a {
+  color: #c4a1ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.nyx-markdown-content code {
+  background: #21192b;
+  border: 1px solid #3b2b4b;
+  border-radius: 5px;
+  padding: 2px 5px;
+  font-size: .92em;
+  white-space: pre-wrap;
+}
+.nyx-markdown-content pre {
+  overflow-x: auto;
+  padding: 12px;
+  border: 1px solid #3b2b4b;
+  border-radius: 10px;
+  background: #100c16;
+}
+.nyx-markdown-content pre code {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+.nyx-markdown-content table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: .92em;
+  white-space: normal;
+}
+.nyx-markdown-content th,
+.nyx-markdown-content td {
+  border: 1px solid #49365a;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  min-width: 95px;
+}
+.nyx-markdown-content th {
+  background: #21172d;
+  color: #f2e8ff;
+  font-weight: 700;
+}
+.nyx-markdown-content tr:nth-child(even) td { background: #100d17; }
