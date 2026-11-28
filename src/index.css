@@ -2643,3 +2643,43 @@ p { color: var(--muted); line-height: 1.7; }
     padding-right: 10px;
   }
 }
+
+
+/* Unified NYX menu */
+.nyx-menu-page { padding-bottom: 105px; }
+.nyx-menu-sections { display: flex; flex-direction: column; gap: 11px; margin-top: 22px; }
+.nyx-menu-section {
+  width: 100%; min-height: 78px; display: flex; align-items: center; gap: 14px;
+  padding: 15px; border: 1px solid rgba(196,165,253,.16); border-radius: 17px;
+  background: linear-gradient(135deg, #1d1429, #130d1c); color: #f5efff;
+  text-align: left; cursor: pointer;
+}
+.nyx-menu-section > span:nth-child(2) { flex: 1; min-width: 0; }
+.nyx-menu-section strong, .nyx-menu-section small,
+.nyx-menu-studio strong, .nyx-menu-studio small { display: block; }
+.nyx-menu-section strong { font-size: 14px; }
+.nyx-menu-section small { margin-top: 5px; color: #a99bbd; font-size: 11px; }
+.nyx-menu-number {
+  width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
+  border: 1px solid rgba(196,165,253,.2); border-radius: 11px;
+  background: rgba(139,92,246,.12); color: #d7baff; font-size: 11px; font-weight: 700;
+}
+.nyx-menu-back {
+  display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 16px;
+  padding: 9px 12px; border: 1px solid rgba(196,165,253,.18); border-radius: 12px;
+  background: #191123; color: #e9ddfa; cursor: pointer;
+}
+.nyx-menu-page h2 { margin: 20px 0 7px; font-size: 19px; }
+.nyx-menu-studio-list { display: flex; flex-direction: column; gap: 8px; margin-top: 17px; }
+.nyx-menu-studio {
+  width: 100%; min-height: 66px; display: flex; align-items: center; gap: 11px;
+  padding: 10px 12px; border: 1px solid rgba(196,165,253,.13); border-radius: 14px;
+  background: #171020; color: #f5efff; text-align: left; cursor: pointer;
+}
+.nyx-menu-studio > span:nth-of-type(2) { flex: 1; min-width: 0; }
+.nyx-menu-studio strong { font-size: 12px; }
+.nyx-menu-studio small { margin-top: 3px; color: #a99bbd; font-size: 10px; line-height: 1.35; }
+.nyx-menu-page .nyx-project-item { display: flex; align-items: center; gap: 8px; }
+.nyx-menu-page .nyx-project-item > button:first-child { flex: 1; min-width: 0; }
+.nyx-menu-page .nyx-project-item > button:first-child > span:nth-child(2) { flex: 1; min-width: 0; }
+.nyx-menu-page .nyx-project-item > button:first-child > .nyx-menu-number { flex: 0 0 34px; }
