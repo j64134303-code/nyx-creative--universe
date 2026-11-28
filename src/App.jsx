@@ -342,7 +342,13 @@ export default function App() {
         console.error("Could not load project conversations:", error);
         setProjectConversationIds([]);
       } else {
-        setProjectConversationIds((data || []).map(row => row.id));
+        const ids = (data || []).map(row => row.id);
+        setProjectConversationIds(ids);
+        const keep = new Set(ids);
+        setConversations(previous => previous.filter(conversation =>
+          conversation.projectId === activeSharedProjectId ||
+          (conversation.cloudConversationId && keep.has(conversation.cloudConversationId))
+        ));
       }
       setProjectConversationsLoading(false);
     })();
