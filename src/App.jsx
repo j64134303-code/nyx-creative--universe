@@ -551,20 +551,9 @@ export default function App() {
           );
         }
       } else {
-        // Keep the existing standalone-project behaviour when the creator
-        // has not selected a shared project.
-        const { data: project, error: projectError } = await supabase
-          .from("nyx_projects")
-          .insert({
-            user_id: sessionData.session.user.id,
-            title: getTitle(message),
-            lead_studio_id: activeStudio.id
-          })
-          .select("id")
-          .single();
-
-        if (projectError) throw projectError;
-        cloudProjectId = project.id;
+        // Standalone conversations are not projects. Only attach a chat to
+        // a project when the creator explicitly selected one.
+        cloudProjectId = null;
       }
 
       if (existingConversation?.projectId !== cloudProjectId) {
