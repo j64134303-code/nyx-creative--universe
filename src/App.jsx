@@ -290,7 +290,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (page !== "projects" || !user) return;
+    if ((page !== "projects" && !(page === "menu" && menuSection === "projects")) || !user) return;
     let active = true;
     setSavedProjectsLoading(true);
     setSavedProjectsError("");
@@ -322,7 +322,7 @@ export default function App() {
       setSavedProjectsLoading(false);
     })();
     return () => { active = false; };
-  }, [page, user]);
+  }, [page, user, menuSection]);
 
   useEffect(() => {
     if (page !== "projects" || !user || !activeSharedProjectId) {
