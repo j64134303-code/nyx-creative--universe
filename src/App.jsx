@@ -1080,7 +1080,80 @@ export default function App() {
         </button>
       </header>
 
-      {page === "home" ? (
+      {page === "menu" ? (
+        <section className="nyx-page-content nyx-menu-page">
+          <div className="nyx-page-title"><MenuIcon size={24} /><h1>NYX Menu</h1></div>
+          <p>Your creative universe, organised in one place.</p>
+          {menuSection !== "overview" && (
+            <button className="nyx-menu-back" type="button" onClick={() => setMenuSection("overview")}>
+              <ArrowLeft size={17} /> Menu
+            </button>
+          )}
+          {menuSection === "overview" ? (
+            <div className="nyx-menu-sections">
+              <button type="button" className="nyx-menu-section" onClick={() => setMenuSection("history")}>
+                <span className="nyx-menu-number">01</span><span><strong>History</strong><small>Open previous conversations</small></span><ChevronRight size={19} />
+              </button>
+              <button type="button" className="nyx-menu-section" onClick={() => setMenuSection("projects")}>
+                <span className="nyx-menu-number">02</span><span><strong>Major Projects</strong><small>Choose a shared project across studios</small></span><ChevronRight size={19} />
+              </button>
+              <button type="button" className="nyx-menu-section" onClick={() => setMenuSection("studios")}>
+                <span className="nyx-menu-number">03</span><span><strong>Studios</strong><small>Explore all 12 creative studios</small></span><ChevronRight size={19} />
+              </button>
+            </div>
+          ) : menuSection === "history" ? (
+            <>
+              <h2>01 — History</h2>
+              <p>Your saved conversations. Select one to continue.</p>
+              {conversations.length === 0 ? <div className="nyx-empty-chat"><p>No conversations in history.</p></div> :
+                conversations.map((conversation, index) => {
+                  const studio = findStudio(conversation.studioId);
+                  return <div className="nyx-project-item" key={conversation.id}>
+                    <button type="button" onClick={() => openConversation(conversation)}>
+                      <span className="nyx-menu-number">{String(index + 1).padStart(2, "0")}</span>
+                      <span><strong>{conversation.title || "New conversation"}</strong><small>{studio?.name || "Studio"} · {formatDate(conversation.updatedAt)}</small></span>
+                    </button>
+                    <button type="button" onClick={() => deleteConversation(conversation.id)} aria-label="Delete conversation"><Trash2 size={16} /></button>
+                  </div>;
+                })}
+            </>
+          ) : menuSection === "projects" ? (
+            <>
+              <h2>02 — Major Projects</h2>
+              <p>Select a project to make it active across your studios.</p>
+              {!user ? <div className="nyx-empty-chat"><p>Sign in to view your major projects.</p></div> :
+                savedProjectsLoading ? <p>Loading major projects...</p> :
+                savedProjectsError ? <p className="nyx-chat-error">{savedProjectsError}</p> :
+                savedProjects.length === 0 ? <div className="nyx-empty-chat"><p>No major projects yet.</p></div> :
+                savedProjects.map((project, index) => (
+                  <div className="nyx-project-item" key={project.id}>
+                    <button type="button" onClick={() => selectSharedProject(project.id)} aria-pressed={activeSharedProjectId === project.id}>
+                      <span className="nyx-menu-number">{String(index + 1).padStart(2, "0")}</span>
+                      <span><strong>{project.title || "Untitled project"}</strong><small>{project.lead_studio_id || "Creative project"} · {project.status || "active"}</small>{project.description ? <small>{project.description}</small> : null}</span>
+                    </button>
+                    {activeSharedProjectId === project.id && <span className="nyx-project-selected">Active</span>}
+                  </div>
+                ))}
+            </>
+          ) : (
+            <>
+              <h2>03 — Studios</h2>
+              <p>Choose a studio to open its workspace.</p>
+              <div className="nyx-menu-studio-list">
+                {STUDIOS.map((studio, index) => {
+                  const Icon = studio.icon;
+                  return <button type="button" className="nyx-menu-studio" key={studio.id} onClick={() => openStudioWorkspace(studio)}>
+                    <span className="nyx-menu-number">{String(index + 1).padStart(2, "0")}</span>
+                    <Icon size={19} style={{ color: studio.color }} />
+                    <span><strong>{studio.name}</strong><small>{studio.description}</small></span>
+                    <ChevronRight size={17} />
+                  </button>;
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      ) : page === "home" ? (
         <Home
           onNavigate={navigate}
           onNewChat={() => startConversation(STUDIOS[0])}
