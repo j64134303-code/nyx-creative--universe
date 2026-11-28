@@ -526,9 +526,30 @@ export default function StudioWorkspace({
                 deliverables: []
               };
             }
-          } catch {
+          } catch (checkFailure) {
+            // Preserve a useful diagnostic without exposing request headers or secrets.
+            let diagnostic = checkFailure?.message || "Unknown connection-check error.";
+            try {
+              const response = checkFailure?.context;
+              if (response && typeof response.clone === "function") {
+                const body = await response.clone().text();
+                if (body) {
+                  const parsed = JSON.parse(body);
+                  const safeMessage = parsed?.message || parsed?.error;
+                  if (typeof safeMessage === "string" && safeMessage.trim()) {
+                    diagnostic = safeMessage.trim();
+                  }
+                }
+              }
+            } catch {
+              // Keep the safe SDK error message if the response body is unavailable.
+            }
+            diagnostic = String(diagnostic)
+              .replace(/Bearer\\s+\\S+/gi, "Bearer [redacted]")
+              .replace(/(api[_-]?key|secret|token)\\s*[:=]\\s*\\S+/gi, "$1=[redacted]")
+              .slice(0, 500);
             output = {
-              response: "I couldn't complete the video-production connection check just now. No video was generated and no credits were spent. We can continue working on The Last Kingdom while I leave the connection untouched.",
+              response: "The Runway connection check could not be completed. No video was generated and no credits were spent. Diagnostic: " + diagnostic,
               sources: [],
               provider: "NYX",
               deliverables: []
