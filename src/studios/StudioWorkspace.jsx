@@ -440,21 +440,36 @@ export default function StudioWorkspace({
 
   async function checkFilmSetup() {
     if (!projectId) {
-      setFilmTaskError("Select The Last Kingdom or another saved project first.");
+      setFilmTaskError("Choose The Last Kingdom from Menu → Projects before checking Runway.");
       return;
     }
     setFilmBusy(true);
     setFilmTaskError("");
+    setError("");
     setFilmCheckResult(null);
     try {
       const { data, error: invokeError } = await supabase.functions.invoke("nyx-core", {
         body: { action: "video_check", studioId: "film", projectId }
       });
-      if (invokeError) throw invokeError;
-      if (!data?.success) throw new Error(data?.error || "NYX setup check failed.");
-      setFilmCheckResult(data);
+      if (invokeError) {
+        let detail = "";
+        try {
+          const response = invokeError.context;
+          const payload = response?.clone ? await response.clone().json() : null;
+          detail = payload?.error || payload?.message || "";
+        } catch {}
+        throw new Error(detail || invokeError.message || "NYX could not complete the Runway connection check.");
+      }
+      setFilmCheckResult(data || null);
+      if (!data?.success) {
+        const detail = data?.message || data?.error || "Runway could not verify the connection.";
+        setFilmTaskError(detail);
+        setError("Runway check: " + detail);
+      }
     } catch (err) {
-      setFilmTaskError(err.message || "Could not check the Runway setup.");
+      const detail = err.message || "Could not check the Runway connection.";
+      setFilmTaskError(detail);
+      setError("Runway check failed: " + detail);
     } finally {
       setFilmBusy(false);
     }
@@ -1288,7 +1303,7 @@ export default function StudioWorkspace({
       <div className="nyx-chat-content">
         <section className="nyx-chat-tools">
           <details>
-            <summary>✦ Studio workspace & tools</summary>
+            <summary>Production tools (optional) · Runway, files and studio details</summary>
 
             <div className="nyx-chat-tool-content">
               <div>
@@ -1346,7 +1361,7 @@ export default function StudioWorkspace({
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                       <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}>Duration
                         <select value={filmDuration} onChange={event => setFilmDuration(Number(event.target.value))} disabled={filmBusy} style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, padding: 10, borderRadius: 8, background: "#1a1522", color: "#fff", border: "1px solid #49315e" }}>
-                          {[5, 10, 15].map(value => <option key={value} value={value}>{value} seconds</option>)}
+                          {[5, 10, 15, 30].map(value => <option key={value} value={value}>{value} seconds</option>)}
                         </select>
                       </label>
                       <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}>Video format
@@ -1562,7 +1577,7 @@ export default function StudioWorkspace({
               rows={1}
               value={message}
               onChange={event => setMessage(event.target.value)}
-              placeholder={`Message ${studio.name}...`}
+              placeholder={`Ask ${studio.name} anything...`}
               disabled={loading}
               onKeyDown={event => {
                 if (
