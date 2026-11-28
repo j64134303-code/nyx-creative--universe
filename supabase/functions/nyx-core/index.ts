@@ -5462,10 +5462,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
   } catch (error) {
     console.error("NYX CORE HTTP error:", error);
 
+    const isVideoAction =
+      typeof body.action === "string" &&
+      body.action.startsWith("video_");
+    const safeVideoError = error instanceof Error
+      ? error.message
+      : "NYX could not complete the video-production request.";
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: "NYX could not process this request."
+        error: isVideoAction
+          ? safeVideoError
+          : "NYX could not process this request."
       }),
       {
         status: 400,
