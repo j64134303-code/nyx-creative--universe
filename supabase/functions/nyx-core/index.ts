@@ -4763,14 +4763,46 @@ async function handleRunwayVideoAction(
       throw new Error("Runway is not configured. Add RUNWAYML_API_SECRET to Supabase Edge Function secrets.");
     }
     if (action === "video_check") {
+      // Read-only Runway organization lookup: validates the API key without creating a generation.
+      const validationResponse = await fetch("https://api.dev.runwayml.com/v1/organization", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + apiKey,
+          "X-Runway-Version": "2024-11-06"
+        },
+        signal: AbortSignal.timeout(15000)
+      });
+      const validationData = await validationResponse.json().catch(() => ({}));
+      if (!validationResponse.ok) {
+        const invalidCredential = validationResponse.status === 401 ||
+          validationResponse.status === 403;
+        return new Response(JSON.stringify({
+          success: false,
+          configured: true,
+          provider: "Runway",
+          secretPresent: true,
+          credentialVerified: false,
+          generationTested: false,
+          providerStatus: validationResponse.status,
+          message: invalidCredential
+            ? "Runway rejected the API key. Check that RUNWAYML_API_SECRET contains the active Runway API key."
+            : "Runway authentication could not be confirmed. The read-only validation request returned HTTP " + validationResponse.status + ". No video was generated."
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
       return new Response(JSON.stringify({
         success: true,
         configured: true,
         provider: "Runway",
         secretPresent: true,
-        credentialVerified: false,
+        credentialVerified: true,
         generationTested: false,
-        message: "NYX is authenticated and the Runway secret is present. The API key itself has not been tested; that requires a non-billable provider validation endpoint or an approved generation."
+        creditBalance: typeof validationData.creditBalance === "number"
+          ? validationData.creditBalance
+          : null,
+        message: "Runway API key verified successfully using a read-only organization check. No video was generated and no generation credits were used."
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
