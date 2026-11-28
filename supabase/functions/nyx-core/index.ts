@@ -4725,13 +4725,9 @@ async function executeStudioCollaboration(
 ========================================================= */
 
 function runwayVideoEstimate(duration: number): number {
-  const listPrice = Math.ceil(15.7 * duration);
-  const now = new Date();
-  const promoActive =
-    now.getUTCFullYear() === 2026 &&
-    (now.getUTCMonth() < 10 ||
-      (now.getUTCMonth() === 10 && now.getUTCDate() <= 30));
-  return promoActive ? Math.ceil(listPrice * 0.8) : listPrice;
+  // Runway's published Kling 4.0 720p rate is 15.7 credits per second.
+  // Do not apply an unverified promotional discount to the creator's estimate.
+  return Math.ceil(15.7 * duration);
 }
 
 async function handleRunwayVideoAction(
