@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import {
-  getStudio,
-  getStudioCollaborators
-} from "./StudioRegistry";
+import { getStudio } from "./StudioRegistry";
 import {
   listUserProjects,
   runStudioRequest,
@@ -105,8 +102,6 @@ export default function StudioWorkspace({
   onResult
 }) {
   const studio = getStudio(studioId);
-  const collaborators = getStudioCollaborators(studioId);
-
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -488,13 +483,66 @@ export default function StudioWorkspace({
           : "No shared project assets are currently attached."
       ].filter(Boolean).join("\n\n");
 
-      const output = await runStudioRequest({
-        studioId,
-        message: creatorMessage,
-        history: previousMessages,
-        projectId: projectId || null,
-        workspaceContext
-      });
+      let output;
+      const isRunwayConnectionQuestion =
+        studioId === "film" &&
+        /runway/.test(creatorMessage.toLowerCase()) &&
+        /(check|connect|connection|connected|status|authenticate|authentication|working|available)/.test(creatorMessage.toLowerCase());
+
+      if (isRunwayConnectionQuestion) {
+        if (!projectId) {
+          output = {
+            response: "I can check the video-production connection once The Last Kingdom is selected in the studio menu. No video has been generated and no credits have been spent.",
+            sources: [],
+            provider: "NYX",
+            deliverables: []
+          };
+        } else {
+          try {
+            const { data, error: checkError } = await supabase.functions.invoke("nyx-core", {
+              body: { action: "video_check", studioId: "film", projectId }
+            });
+            if (checkError || !data) throw checkError || new Error("Connection check unavailable.");
+            if (data.success && data.credentialVerified) {
+              output = {
+                response: "Runway is connected and its credentials have been verified. I have not generated a video or spent any credits. We can continue planning the first scene; I will ask for your approval before any paid render.",
+                sources: [],
+                provider: "NYX",
+                deliverables: []
+              };
+            } else if (data.secretPresent) {
+              output = {
+                response: "The Runway connection details are present, but the service has not verified them successfully. No video was generated and no credits were spent. I can keep developing the film while this is resolved.",
+                sources: [],
+                provider: "NYX",
+                deliverables: []
+              };
+            } else {
+              output = {
+                response: "The video-production connection is not configured yet. Its secure setup is handled in the app configuration, not in this chat. No video was generated and no credits were spent. I can continue preparing the film in the meantime.",
+                sources: [],
+                provider: "NYX",
+                deliverables: []
+              };
+            }
+          } catch {
+            output = {
+              response: "I couldn't complete the video-production connection check just now. No video was generated and no credits were spent. We can continue working on The Last Kingdom while I leave the connection untouched.",
+              sources: [],
+              provider: "NYX",
+              deliverables: []
+            };
+          }
+        }
+      } else {
+        output = await runStudioRequest({
+          studioId,
+          message: creatorMessage,
+          history: previousMessages,
+          projectId: projectId || null,
+          workspaceContext
+        });
+      }
 
       const assistantMessage = await saveStudioMessage({
         conversationId: threadId,
