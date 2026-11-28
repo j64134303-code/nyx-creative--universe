@@ -6,7 +6,7 @@ import {
   Send, Paperclip, ArrowLeft, Trash2, ChevronRight,
   FolderOpen, Search, Headphones, Settings, LogOut,
   Link as LinkIcon, ExternalLink, House, Compass,
-  CircleUserRound, Video, X, Menu as MenuIcon, Clock3, FolderKanban
+  CircleUserRound, Video, X, Menu as MenuIcon
 } from "lucide-react";
 
 import { supabase } from "./lib/supabase";
@@ -325,7 +325,7 @@ export default function App() {
   }, [page, user, menuSection]);
 
   useEffect(() => {
-    if (page !== "projects" || !user || !activeSharedProjectId) {
+    if ((page !== "projects" && !(page === "menu" && menuSection === "projects")) || !user || !activeSharedProjectId) {
       setProjectConversationIds([]);
       return;
     }
@@ -347,7 +347,7 @@ export default function App() {
       setProjectConversationsLoading(false);
     })();
     return () => { active = false; };
-  }, [page, user, activeSharedProjectId]);
+  }, [page, user, activeSharedProjectId, menuSection]);
 
   const projectRecentConversations = useMemo(() => {
     const ids = new Set(projectConversationIds);
