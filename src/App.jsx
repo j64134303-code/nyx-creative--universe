@@ -6,7 +6,7 @@ import {
   Send, Paperclip, ArrowLeft, Trash2, ChevronRight,
   FolderOpen, Search, Headphones, Settings, LogOut,
   Link as LinkIcon, ExternalLink, House, Compass,
-  CircleUserRound, Video, X
+  CircleUserRound, Video, X, Menu as MenuIcon, Clock3, FolderKanban
 } from "lucide-react";
 
 import { supabase } from "./lib/supabase";
@@ -35,8 +35,7 @@ const STUDIOS = [
 const NAVIGATION = [
   { name: "Home", page: "home", icon: House },
   { name: "Reels", page: "reels", icon: Film },
-  { name: "Studios", page: "studio", icon: Clapperboard },
-  { name: "Projects", page: "projects", icon: FolderOpen },
+  { name: "Menu", page: "menu", icon: MenuIcon },
   { name: "Research", page: "research", icon: Compass },
   { name: "Account", page: "account", icon: CircleUserRound }
 ];
@@ -244,6 +243,7 @@ export default function App() {
   const [workspaceStudioId, setWorkspaceStudioId] = useState(null);
 
   const [page, setPage] = useState("home");
+  const [menuSection, setMenuSection] = useState("overview");
   const [researchReturnPage, setResearchReturnPage] = useState("home");
 
   const [user, setUser] = useState(null);
@@ -446,6 +446,7 @@ export default function App() {
   };
 
   const navigate = (nextPage) => {
+    if (nextPage === "menu") setMenuSection("overview");
     if (nextPage === "research") {
       openResearch();
       return;
