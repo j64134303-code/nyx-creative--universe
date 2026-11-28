@@ -118,6 +118,7 @@ export default function StudioWorkspace({
   const [conversationTitle, setConversationTitle] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [studioMenuSection, setStudioMenuSection] = useState("history");
   const [contextDraft, setContextDraft] = useState("");
   const [contextSaving, setContextSaving] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -1201,10 +1202,15 @@ export default function StudioWorkspace({
             max-width: 88%;
           }
         }
+
+        .nyx-studio-menu-tabs { display:flex; gap:8px; margin:12px 0 14px; }
+        .nyx-studio-menu-tabs button { flex:1; padding:10px; border:1px solid #49315e; border-radius:11px; background:#171020; color:#cdb8df; }
+        .nyx-studio-menu-tabs button.active { background:#392052; border-color:#a78bfa; color:#fff; }
+        .nyx-history-items a.nyx-history-item { display:block; text-decoration:none; }
       `}</style>
 
       <header className="nyx-chat-header">
-        <button type="button" className="nyx-history-toggle" onClick={() => setHistoryOpen(true)} aria-label="Open conversation history">☰ History</button>
+        <button type="button" className="nyx-history-toggle" onClick={() => { setStudioMenuSection("history"); setHistoryOpen(true); }} aria-label="Open studio menu">☰ Menu</button>
         <button
           type="button"
           className="nyx-chat-back"
@@ -1252,28 +1258,57 @@ export default function StudioWorkspace({
       {historyOpen && (
         <div className="nyx-history-backdrop" onClick={() => setHistoryOpen(false)}>
           <aside className="nyx-history-drawer" onClick={event => event.stopPropagation()}>
-            <div className="nyx-history-top"><strong>{studio.name}</strong><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close history">×</button></div>
-            <button type="button" className="nyx-history-new" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>＋ New chat</button>
-            <button type="button" className="nyx-history-task" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>✦ New task</button>
-            <input className="nyx-history-search" value={conversationSearch} onChange={event => setConversationSearch(event.target.value)} placeholder="Search conversations..." aria-label="Search conversations" />
-            <div className="nyx-history-label">PAST CONVERSATIONS · {conversations.length}</div>
-            <div className="nyx-history-items">
-              {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
-              {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
-                <button type="button" key={item.id} className={`nyx-history-item ${item.id === activeConversationId ? "active" : ""}`} onClick={() => openThread(item)} title={item.title}>
-                  {item.conversation_type === "task" ? "✦ " : "◌ "}{item.title || "Untitled conversation"}
+            <div className="nyx-history-top"><strong>{studio.name} · Menu</strong><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close menu">×</button></div>
+            <div className="nyx-studio-menu-tabs">
+              <button type="button" className={studioMenuSection === "history" ? "active" : ""} onClick={() => setStudioMenuSection("history")}>History</button>
+              <button type="button" className={studioMenuSection === "projects" ? "active" : ""} onClick={() => setStudioMenuSection("projects")}>Projects</button>
+            </div>
+            {studioMenuSection === "history" ? <>
+              <button type="button" className="nyx-history-new" onClick={() => startNewThread("conversation")} disabled={threadLoading || loading}>＋ New chat</button>
+              <button type="button" className="nyx-history-task" onClick={() => startNewThread("task")} disabled={threadLoading || loading}>✦ New task</button>
+              <input className="nyx-history-search" value={conversationSearch} onChange={event => setConversationSearch(event.target.value)} placeholder="Search conversations..." aria-label="Search conversations" />
+              <div className="nyx-history-label">PAST CONVERSATIONS · {conversations.length}</div>
+              <div className="nyx-history-items">
+                {threadLoading && <span className="nyx-thread-meta">Loading your work...</span>}
+                {conversations.filter(item => (item.title || "").toLowerCase().includes(conversationSearch.toLowerCase())).map(item => (
+                  <button type="button" key={item.id} className={`nyx-history-item ${item.id === activeConversationId ? "active" : ""}`} onClick={() => openThread(item)} title={item.title}>
+                    {item.conversation_type === "task" ? "✦ " : "◌ "}{item.title || "Untitled conversation"}
+                  </button>
+                ))}
+                {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your conversations will appear here.</span>}
+              </div>
+              {activeConversationId && (
+                <details className="nyx-history-options">
+                  <summary>⋯ Conversation options</summary>
+                  <button type="button" onClick={handleRenameThread}>Rename chat</button>
+                  <textarea value={contextDraft} onChange={event => setContextDraft(event.target.value)} placeholder="Conversation context and project notes..." />
+                  <button type="button" onClick={handleSaveContext} disabled={contextSaving}>{contextSaving ? "Saving..." : "Save context"}</button>
+                </details>
+              )}
+            </> : <>
+              <div className="nyx-history-label">MAJOR PROJECTS · {projects.length}</div>
+              {projectsLoading && <span className="nyx-thread-meta">Loading projects...</span>}
+              {!projectsLoading && projects.length === 0 && <span className="nyx-thread-meta">No saved projects yet.</span>}
+              {projects.map(item => (
+                <button type="button" key={item.id} className={`nyx-history-item ${item.id === projectId ? "active" : ""}`} onClick={() => {
+                  setProjectId(item.id);
+                  try { localStorage.setItem("nyx-active-project-id", item.id); } catch {}
+                }}>
+                  {item.id === projectId ? "✓ " : "▣ "}{item.title || "Untitled project"}
                 </button>
               ))}
-              {!threadLoading && conversations.length === 0 && <span className="nyx-thread-meta">Your conversations will appear here.</span>}
-            </div>
-            {activeConversationId && (
-              <details className="nyx-history-options">
-                <summary>⋯ Conversation options</summary>
-                <button type="button" onClick={handleRenameThread}>Rename chat</button>
-                <textarea value={contextDraft} onChange={event => setContextDraft(event.target.value)} placeholder="Conversation context and project notes..." />
-                <button type="button" onClick={handleSaveContext} disabled={contextSaving}>{contextSaving ? "Saving..." : "Save context"}</button>
-              </details>
-            )}
+              {projectId && <>
+                <div className="nyx-history-label">PROJECT WORK · {conversations.filter(item => item.project_id === projectId).length}</div>
+                {conversations.filter(item => item.project_id === projectId).map(item => (
+                  <button type="button" key={item.id} className={`nyx-history-item ${item.id === activeConversationId ? "active" : ""}`} onClick={() => openThread(item)}>
+                    {item.conversation_type === "task" ? "✦ " : "◌ "}{item.title || "Untitled work"}
+                  </button>
+                ))}
+                <div className="nyx-history-label">PROJECT FILES · {projectAssets.length}</div>
+                {projectAssets.map(asset => asset.signedUrl ? <a key={asset.id} className="nyx-history-item" href={asset.signedUrl} target="_blank" rel="noreferrer">↗ {asset.file_name || "Open project file"}</a> : <span key={asset.id} className="nyx-thread-meta">{asset.file_name}</span>)}
+                {!projectAssets.length && <span className="nyx-thread-meta">Project files you add in Studio workspace & tools will appear here.</span>}
+              </>}
+            </>}
           </aside>
         </div>
       )}
