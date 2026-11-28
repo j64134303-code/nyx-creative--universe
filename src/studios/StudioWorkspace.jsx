@@ -1299,75 +1299,90 @@ export default function StudioWorkspace({
               </div>
 
               {studioId === "film" && (
-                <section style={{ marginTop: 16, padding: 13, border: "1px solid #49315e", borderRadius: 13, background: "#100d18" }}>
-                  <h3 style={{ marginTop: 0 }}>VIDEO PRODUCTION · RUNWAY</h3>
-                  <p style={{ fontSize: 12, color: "#c4b5d4" }}>
-                    Check the Runway connection without generating a video. Choose a saved project from Menu → Projects first.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={checkFilmSetup}
-                    disabled={filmBusy || !projectId}
-                    style={{ width: "100%", padding: 11, borderRadius: 10, border: "1px solid #8b5cf6", background: "#392052", color: "#fff", fontWeight: 700, opacity: filmBusy || !projectId ? 0.55 : 1 }}
-                  >
-                    {filmBusy ? "Checking..." : "Check Runway connection"}
-                  </button>
-                  {filmCheckResult && (
-                    <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: "#17251d", color: "#bbf7d0", fontSize: 12 }}>
-                      <strong>Runway connection verified</strong>
-                      <p style={{ margin: "5px 0 0" }}>{filmCheckResult.message}</p>
-                      <p style={{ margin: "5px 0 0" }}>Credential verified: {filmCheckResult.credentialVerified ? "Yes" : "No"} · Video generated: No</p>
+                <section style={{ marginTop: 18, padding: 16, border: "1px solid #49315e", borderRadius: 15, background: "linear-gradient(160deg, #151020 0%, #0d0a13 100%)", display: "grid", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#b99ad8", fontWeight: 800 }}>PRODUCTION CONNECTION</div>
+                    <h3 style={{ margin: "5px 0 4px", fontSize: 16 }}>Runway video</h3>
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#c4b5d4" }}>
+                      First check that NYX can authenticate with Runway. This check does not generate a video or spend generation credits.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={checkFilmSetup}
+                      disabled={filmBusy || !projectId}
+                      style={{ width: "100%", marginTop: 11, padding: 12, borderRadius: 10, border: "1px solid #8b5cf6", background: "#392052", color: "#fff", fontWeight: 700, opacity: filmBusy || !projectId ? 0.55 : 1 }}
+                    >
+                      {filmBusy ? "Checking connection..." : "1. Check Runway connection"}
+                    </button>
+                    {!projectId && <p style={{ margin: "7px 0 0", fontSize: 11, color: "#fbbf24" }}>Select a saved project in Menu → Projects to enable the check.</p>}
+                    {filmCheckResult && (
+                      <div style={{ marginTop: 10, padding: 11, borderRadius: 9, border: "1px solid #315b43", background: "#142219", color: "#bbf7d0", fontSize: 12 }}>
+                        <strong>{filmCheckResult.credentialVerified ? "Runway credential verified" : "Runway check completed"}</strong>
+                        <p style={{ margin: "5px 0 0", lineHeight: 1.5 }}>{filmCheckResult.message}</p>
+                        <p style={{ margin: "5px 0 0" }}>Secret present: {filmCheckResult.secretPresent ? "Yes" : "No"} · Credential verified: {filmCheckResult.credentialVerified ? "Yes" : "No"} · Video generated: No</p>
+                      </div>
+                    )}
+                    {filmTaskError && <p role="alert" style={{ color: "#fca5a5", fontSize: 12, margin: "9px 0 0", lineHeight: 1.5 }}>{filmTaskError}</p>}
+                  </div>
+
+                  <div style={{ borderTop: "1px solid #392b45", paddingTop: 15, display: "grid", gap: 11 }}>
+                    <div>
+                      <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#b99ad8", fontWeight: 800 }}>VIDEO CREATION</div>
+                      <h3 style={{ margin: "5px 0 4px", fontSize: 16 }}>2. Create a video shot</h3>
+                      <p style={{ margin: 0, fontSize: 12, color: "#c4b5d4", lineHeight: 1.5 }}>Describe one shot you want Runway to render. Choose its length and frame shape below.</p>
                     </div>
-                  )}
-                  <div style={{ borderTop: "1px solid #392b45", marginTop: 14, paddingTop: 13 }}>
-                    <h3 style={{ marginTop: 0 }}>CREATE A VIDEO SHOT</h3>
-                    <label style={{ display: "block", fontSize: 11, marginBottom: 5 }}>Describe the shot</label>
-                    <textarea
-                      value={filmPrompt}
-                      onChange={event => setFilmPrompt(event.target.value)}
-                      maxLength={1000}
-                      rows={4}
-                      placeholder="Describe the scene, action, camera movement, lighting and visual style..."
-                      disabled={filmBusy}
-                      style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 9, border: "1px solid #49315e", background: "#1a1522", color: "#fff", font: "inherit", fontSize: 12 }}
-                    />
-                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                      <label style={{ flex: 1, fontSize: 11 }}>Duration
-                        <select value={filmDuration} onChange={event => setFilmDuration(Number(event.target.value))} disabled={filmBusy} style={{ display: "block", width: "100%", marginTop: 5, padding: 9, borderRadius: 8, background: "#1a1522", color: "#fff", border: "1px solid #49315e" }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700 }}>Shot description
+                      <textarea
+                        value={filmPrompt}
+                        onChange={event => setFilmPrompt(event.target.value)}
+                        maxLength={1000}
+                        rows={4}
+                        placeholder="Example: A wide cinematic view of a Norman stone fortress above the River Severn at dawn. Low mist drifts across the water; slow camera push-in; realistic 12th-century details."
+                        disabled={filmBusy}
+                        style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, padding: 11, borderRadius: 9, border: "1px solid #49315e", background: "#1a1522", color: "#fff", font: "inherit", fontSize: 12, lineHeight: 1.5 }}
+                      />
+                      <span style={{ display: "block", marginTop: 4, textAlign: "right", fontSize: 10, color: "#9f8eae" }}>{filmPrompt.length}/1000 characters</span>
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}>Duration
+                        <select value={filmDuration} onChange={event => setFilmDuration(Number(event.target.value))} disabled={filmBusy} style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, padding: 10, borderRadius: 8, background: "#1a1522", color: "#fff", border: "1px solid #49315e" }}>
                           {[5, 10, 15].map(value => <option key={value} value={value}>{value} seconds</option>)}
                         </select>
                       </label>
-                      <label style={{ flex: 1, fontSize: 11 }}>Format
-                        <select value={filmRatio} onChange={event => setFilmRatio(event.target.value)} disabled={filmBusy} style={{ display: "block", width: "100%", marginTop: 5, padding: 9, borderRadius: 8, background: "#1a1522", color: "#fff", border: "1px solid #49315e" }}>
-                          <option value="1280:720">Landscape 16:9</option>
-                          <option value="720:1280">Portrait 9:16</option>
+                      <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}>Video format
+                        <select value={filmRatio} onChange={event => setFilmRatio(event.target.value)} disabled={filmBusy} style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, padding: 10, borderRadius: 8, background: "#1a1522", color: "#fff", border: "1px solid #49315e" }}>
+                          <option value="1280:720">Landscape · 16:9</option>
+                          <option value="720:1280">Portrait · 9:16</option>
                         </select>
                       </label>
                     </div>
-                    <p style={{ fontSize: 11, color: "#c4b5d4", margin: "10px 0" }}>
-                      Backend estimate: {filmCredits} Runway credits. This is an estimate, not a confirmed provider quote.
-                    </p>
-                    <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11, color: "#e9d5ff" }}>
-                      <input type="checkbox" checked={filmApproved} onChange={event => setFilmApproved(event.target.checked)} disabled={filmBusy} style={{ marginTop: 2 }} />
-                      I approve this estimated credit amount and understand that generating the video may spend credits.
+                    <div style={{ padding: 11, borderRadius: 9, background: "#21182b", border: "1px solid #49315e" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>Estimated generation cost</span>
+                        <strong style={{ color: "#e9d5ff", fontSize: 14 }}>{filmCredits} credits</strong>
+                      </div>
+                      <p style={{ margin: "5px 0 0", fontSize: 10, color: "#bdaecc", lineHeight: 1.45 }}>Backend estimate only; Runway's final charge has not been confirmed.</p>
+                    </div>
+                    <label style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: 10, borderRadius: 9, background: "#17111f", fontSize: 11, lineHeight: 1.5, color: "#e9d5ff" }}>
+                      <input type="checkbox" checked={filmApproved} onChange={event => setFilmApproved(event.target.checked)} disabled={filmBusy} style={{ marginTop: 2, flex: "0 0 auto" }} />
+                      I approve this estimated credit amount and understand generation may spend credits.
                     </label>
                     <button
                       type="button"
                       onClick={startFilmGeneration}
                       disabled={filmBusy || !projectId || !filmPrompt.trim() || !filmApproved}
-                      style={{ width: "100%", marginTop: 11, padding: 12, borderRadius: 10, border: "1px solid #a855f7", background: "#7e22ce", color: "#fff", fontWeight: 700, opacity: filmBusy || !projectId || !filmPrompt.trim() || !filmApproved ? 0.5 : 1 }}
+                      style={{ width: "100%", padding: 13, borderRadius: 10, border: "1px solid #a855f7", background: "#7e22ce", color: "#fff", fontWeight: 800, opacity: filmBusy || !projectId || !filmPrompt.trim() || !filmApproved ? 0.5 : 1 }}
                     >
-                      {filmBusy ? "Working..." : "Generate video (uses credits)"}
+                      {filmBusy ? "Submitting..." : "Generate video · uses credits"}
                     </button>
                     {filmTask && (
-                      <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: "#20172b", color: "#e9d5ff", fontSize: 12 }}>
+                      <div style={{ padding: 11, borderRadius: 9, background: "#20172b", color: "#e9d5ff", fontSize: 12 }}>
                         <strong>Video task submitted</strong>
                         <p style={{ overflowWrap: "anywhere" }}>Task: {filmTask.task?.id || filmTask.taskId || "Created"}</p>
                         <button type="button" onClick={refreshFilmTask} disabled={filmBusy} style={{ padding: 8, borderRadius: 8, border: "1px solid #69418b", background: "#392052", color: "#fff" }}>Refresh status</button>
                         {filmTask.task?.status && <p>Status: {filmTask.task.status}</p>}
                       </div>
                     )}
-                    {filmTaskError && <p role="alert" style={{ color: "#fca5a5", fontSize: 12, marginTop: 9 }}>{filmTaskError}</p>}
                   </div>
                 </section>
               )}
