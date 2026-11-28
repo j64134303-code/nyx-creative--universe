@@ -234,6 +234,8 @@ export default function App() {
   const [savedProjects, setSavedProjects] = useState([]);
   const [savedProjectsLoading, setSavedProjectsLoading] = useState(false);
   const [savedProjectsError, setSavedProjectsError] = useState("");
+  const [projectConversationIds, setProjectConversationIds] = useState([]);
+  const [projectConversationsLoading, setProjectConversationsLoading] = useState(false);
   const [activeSharedProjectId, setActiveSharedProjectId] = useState(() => {
     try { return localStorage.getItem("nyx-active-project-id") || ""; } catch { return ""; }
   });
@@ -307,7 +309,9 @@ export default function App() {
         const rows = Array.isArray(data) ? data : [];
         setSavedProjects(rows);
         setActiveSharedProjectId(current => {
-          const selected = rows.some(project => project.id === current) ? current : "";
+          const selected = rows.some(project => project.id === current)
+            ? current
+            : rows.length === 1 ? rows[0].id : "";
           try {
             if (selected) localStorage.setItem("nyx-active-project-id", selected);
             else localStorage.removeItem("nyx-active-project-id");
@@ -319,6 +323,39 @@ export default function App() {
     })();
     return () => { active = false; };
   }, [page, user]);
+
+  useEffect(() => {
+    if (page !== "projects" || !user || !activeSharedProjectId) {
+      setProjectConversationIds([]);
+      return;
+    }
+    let active = true;
+    setProjectConversationsLoading(true);
+    (async () => {
+      const { data, error } = await supabase
+        .from("nyx_conversations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("project_id", activeSharedProjectId);
+      if (!active) return;
+      if (error) {
+        console.error("Could not load project conversations:", error);
+        setProjectConversationIds([]);
+      } else {
+        setProjectConversationIds((data || []).map(row => row.id));
+      }
+      setProjectConversationsLoading(false);
+    })();
+    return () => { active = false; };
+  }, [page, user, activeSharedProjectId]);
+
+  const projectRecentConversations = useMemo(() => {
+    const ids = new Set(projectConversationIds);
+    return conversations.filter(conversation =>
+      (conversation.cloudConversationId && ids.has(conversation.cloudConversationId)) ||
+      conversation.projectId === activeSharedProjectId
+    );
+  }, [conversations, projectConversationIds, activeSharedProjectId]);
 
   const selectSharedProject = (id) => {
     setActiveSharedProjectId(id);
@@ -1147,9 +1184,13 @@ export default function App() {
 
           <h2 style={{ marginTop: 28 }}>Recent conversations</h2>
           <p>These are chats, not separate project records.</p>
-          {conversations.length === 0 ? (
-            <div className="nyx-empty-chat"><p>No conversations yet.</p></div>
-          ) : conversations.map(conversation => {
+          {!activeSharedProjectId ? (
+            <div className="nyx-empty-chat"><p>Select The Last Kingdom above to view its conversations.</p></div>
+          ) : projectConversationsLoading ? (
+            <p>Loading project conversations...</p>
+          ) : projectRecentConversations.length === 0 ? (
+            <div className="nyx-empty-chat"><p>No conversations are linked to this project yet.</p></div>
+          ) : projectRecentConversations.map(conversation => {
             const studio = findStudio(conversation.studioId);
             return (
               <div className="nyx-project-item" key={conversation.id}>
