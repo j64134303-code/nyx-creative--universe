@@ -1083,18 +1083,35 @@ function getSafeErrorMessage(
 ): string {
   if (error instanceof Error) {
     const message = error.message;
+    const safeDiagnosticFragments = [
+      "Authentication required",
+      "session",
+      "permission",
+      "Choose",
+      "message",
+      "studio",
+      "Project ID",
+      "origin",
+      "Invalid authentication token",
+      "Account verification failed",
+      "Unable to verify project access",
+      "Runway is not configured",
+      "Runway video production is currently available",
+      "Select a valid saved NYX project",
+      "Unsupported Runway video action",
+      "Failed to fetch",
+      "fetch failed",
+      "timed out",
+      "timeout"
+    ];
 
-    if (
-      message.includes("Authentication required") ||
-      message.includes("session") ||
-      message.includes("permission") ||
-      message.includes("Choose") ||
-      message.includes("message") ||
-      message.includes("studio") ||
-      message.includes("Project ID") ||
-      message.includes("origin")
-    ) {
-      return message;
+    if (safeDiagnosticFragments.some(fragment =>
+      message.toLowerCase().includes(fragment.toLowerCase())
+    )) {
+      return message
+        .replace(/Bearer\\s+\\S+/gi, "Bearer [redacted]")
+        .replace(/(api[_-]?key|secret|token)\\s*[:=]\\s*\\S+/gi, "$1=[redacted]")
+        .slice(0, 500);
     }
   }
 
