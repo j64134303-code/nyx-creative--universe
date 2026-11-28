@@ -1224,35 +1224,7 @@ export default function StudioWorkspace({
           <h1>{studio.name}</h1>
           <p>{studio.category}</p>
         </div>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, maxWidth: 150, color: "#cdb8df", fontSize: 10 }}>
-          SHARED PROJECT
-          <select
-            value={projectId}
-            disabled={projectsLoading}
-            onChange={async event => {
-              const next = event.target.value;
-              setProjectId(next);
-              try {
-                if (next) localStorage.setItem("nyx-active-project-id", next);
-                else localStorage.removeItem("nyx-active-project-id");
-              } catch {}
-              if (activeConversationId) {
-                try {
-                  await updateStudioConversationProject({ conversationId: activeConversationId, projectId: next });
-                  setConversations(items => items.map(item => item.id === activeConversationId ? { ...item, project_id: next || null } : item));
-                } catch (err) {
-                  setError(err.message || "Could not update the shared project.");
-                }
-              }
-            }}
-            style={{ maxWidth: 150, minWidth: 0, padding: "7px 6px", borderRadius: 8, background: "#1a1522", color: "white", border: "1px solid #49315e", fontSize: 11 }}
-          >
-            <option value="">{projectsLoading ? "Loading..." : "No project selected"}</option>
-            {projects.map(item => (
-              <option key={item.id} value={item.id}>{item.title || "Untitled project"}</option>
-            ))}
-          </select>
-        </label>
+
       </header>
 
       {historyOpen && (
