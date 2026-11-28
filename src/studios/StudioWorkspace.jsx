@@ -140,7 +140,8 @@ export default function StudioWorkspace({
   const [filmTask, setFilmTask] = useState(null);
   const [filmTaskError, setFilmTaskError] = useState("");
   const [filmCheckResult, setFilmCheckResult] = useState(null);
-  const filmCredits = Math.ceil(Math.ceil(15.7 * Number(filmDuration)) * 0.8);
+  // Runway's published Kling 4.0 720p rate: 15.7 credits per second.
+  const filmCredits = Math.ceil(15.7 * Number(filmDuration));
 
 
   const bottomRef = useRef(null);
