@@ -290,7 +290,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if ((page !== "projects" && !(page === "menu" && menuSection === "projects")) || !user) return;
+    if ((page !== "projects" && page !== "menu") || !user) return;
     let active = true;
     setSavedProjectsLoading(true);
     setSavedProjectsError("");
@@ -322,10 +322,10 @@ export default function App() {
       setSavedProjectsLoading(false);
     })();
     return () => { active = false; };
-  }, [page, user, menuSection]);
+  }, [page, user]);
 
   useEffect(() => {
-    if ((page !== "projects" && !(page === "menu" && menuSection === "projects")) || !user || !activeSharedProjectId) {
+    if ((page !== "projects" && page !== "menu") || !user || !activeSharedProjectId) {
       setProjectConversationIds([]);
       return;
     }
@@ -353,7 +353,7 @@ export default function App() {
       setProjectConversationsLoading(false);
     })();
     return () => { active = false; };
-  }, [page, user, activeSharedProjectId, menuSection]);
+  }, [page, user, activeSharedProjectId]);
 
   const projectRecentConversations = useMemo(() => {
     const ids = new Set(projectConversationIds);
