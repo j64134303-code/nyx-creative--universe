@@ -862,6 +862,7 @@ async function authenticateRequest(
 ): Promise<{
   client: ReturnType<typeof createUserSupabaseClient>;
   user: AuthenticatedUser;
+  accessToken: string;
 }> {
   const token = getBearerToken(request);
 
@@ -893,7 +894,8 @@ async function authenticateRequest(
     user: {
       id: data.user.id,
       email: data.user.email ?? undefined
-    }
+    },
+    accessToken: token
   };
 }
 
@@ -1005,7 +1007,8 @@ function isPermissionError(
 
 async function getAuthenticatedProfile(
   client: ReturnType<typeof createUserSupabaseClient>,
-  userId: string
+  userId: string,
+  accessToken: string
 ): Promise<{
   id: string;
   email?: string;
@@ -1013,7 +1016,7 @@ async function getAuthenticatedProfile(
   const {
     data,
     error
-  } = await client.auth.getUser();
+  } = await client.auth.getUser(accessToken);
 
   if (error || !data.user || data.user.id !== userId) {
     throw new Error(
@@ -1048,12 +1051,13 @@ async function buildRequestContext(
 
   const {
     client,
-    user
+    user,
+    accessToken
   } = await authenticateRequest(request);
 
   const validated = validateNYXRequest(body);
 
-  await getAuthenticatedProfile(client, user.id);
+  await getAuthenticatedProfile(client, user.id, accessToken);
 
   await verifyProjectOwnership(
     client,
@@ -4740,8 +4744,8 @@ async function handleRunwayVideoAction(
     if (!validateRequestOrigin(request)) {
       throw new Error("This application origin is not allowed.");
     }
-    const { client, user } = await authenticateRequest(request);
-    await getAuthenticatedProfile(client, user.id);
+    const { client, user, accessToken } = await authenticateRequest(request);
+    await getAuthenticatedProfile(client, user.id, accessToken);
 
     const projectId = validateProjectId(body.projectId);
     if (!projectId || !isValidUUID(projectId)) {
