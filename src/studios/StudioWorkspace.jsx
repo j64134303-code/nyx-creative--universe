@@ -1344,7 +1344,7 @@ export default function StudioWorkspace({
                     <div>
                       <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#b99ad8", fontWeight: 800 }}>VIDEO CREATION</div>
                       <h3 style={{ margin: "5px 0 4px", fontSize: 16 }}>2. Create a video shot</h3>
-                      <p style={{ margin: 0, fontSize: 12, color: "#c4b5d4", lineHeight: 1.5 }}>Describe one shot you want Runway to render. Choose its length and frame shape below.</p>
+                      <p style={{ margin: 0, fontSize: 12, color: "#c4b5d4", lineHeight: 1.5 }}>Runway renders individual shots, not a whole feature film. NYX will plan the film as many connected shots that are edited together. The current backend allows 3–30 seconds per shot; the provider must still accept the chosen settings.</p>
                     </div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700 }}>Shot description
                       <textarea
