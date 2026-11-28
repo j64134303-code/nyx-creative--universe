@@ -484,10 +484,11 @@ export default function StudioWorkspace({
       ].filter(Boolean).join("\n\n");
 
       let output;
+      const normalizedCreatorMessage = creatorMessage.toLowerCase();
       const isRunwayConnectionQuestion =
         studioId === "film" &&
-        /runway/.test(creatorMessage.toLowerCase()) &&
-        /(check|connect|connection|connected|status|authenticate|authentication|working|available)/.test(creatorMessage.toLowerCase());
+        /runway|runaway/.test(normalizedCreatorMessage) &&
+        /(check|connect|connection|connected|status|condition|authenticate|authentication|working|available)/.test(normalizedCreatorMessage);
 
       if (isRunwayConnectionQuestion) {
         if (!projectId) {
