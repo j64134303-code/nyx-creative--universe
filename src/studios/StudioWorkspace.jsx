@@ -512,8 +512,11 @@ export default function StudioWorkspace({
                 deliverables: []
               };
             } else if (data.secretPresent) {
+              const providerStatus = Number.isFinite(data.providerStatus)
+                ? " (Runway HTTP " + data.providerStatus + ")"
+                : "";
               output = {
-                response: "The Runway connection details are present, but the service has not verified them successfully. No video was generated and no credits were spent. I can keep developing the film while this is resolved.",
+                response: (data.message || "Runway credentials are present, but verification did not succeed.") + providerStatus + " No video was generated and no credits were spent. I can keep developing the film while this is resolved.",
                 sources: [],
                 provider: "NYX",
                 deliverables: []
