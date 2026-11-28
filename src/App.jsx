@@ -35,7 +35,7 @@ const STUDIOS = [
 const NAVIGATION = [
   { name: "Home", page: "home", icon: House },
   { name: "Reels", page: "reels", icon: Film },
-  { name: "Menu", page: "menu", icon: MenuIcon },
+  { name: "Studios", page: "studio", icon: MenuIcon },
   { name: "Research", page: "research", icon: Compass },
   { name: "Account", page: "account", icon: CircleUserRound }
 ];
